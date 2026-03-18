@@ -1,3 +1,5 @@
+import PaginationControls from "../../../components/PaginationControls";
+import { usePagination } from "../../../hooks/usePagination";
 import type { ProjectActivity } from "../../../api/projectManagerApi";
 import type { ProjectNote } from "../../../api/projectManagerApi";
 
@@ -81,7 +83,8 @@ const ActivityFeed = ({ activities, notes, compact = false }: Props) => {
     );
   }
 
-  const displayItems = compact ? items.slice(0, 4) : items.slice(0, 10);
+  const pagination = usePagination(items);
+  const displayItems = compact ? pagination.paginatedItems.slice(0, 4) : pagination.paginatedItems;
 
   return (
     <div className={`glass-panel p-5 ${compact ? "space-y-3" : "space-y-4"}`}>
@@ -181,11 +184,21 @@ const ActivityFeed = ({ activities, notes, compact = false }: Props) => {
         })}
       </ul>
 
-      {items.length > displayItems.length && !compact && (
-        <p className="text-xs text-slate-600 text-center pt-1">
-          Showing 10 of {items.length} events
-        </p>
-      )}
+      {!compact && items.length > 0 ? (
+        <div className="rounded-xl border border-slate-800 bg-slate-900/20">
+          <PaginationControls
+            currentPage={pagination.currentPage}
+            pageSize={pagination.pageSize}
+            totalItems={pagination.totalItems}
+            totalPages={pagination.totalPages}
+            startItem={pagination.startItem}
+            endItem={pagination.endItem}
+            onPageChange={pagination.setCurrentPage}
+            onPageSizeChange={pagination.setPageSize}
+            itemLabel="events"
+          />
+        </div>
+      ) : null}
     </div>
   );
 };
