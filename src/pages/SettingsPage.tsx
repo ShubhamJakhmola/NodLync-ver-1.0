@@ -7,6 +7,8 @@ import {
   clearLogs,
 } from "../api/settingsApi";
 import InlineSpinner from "../components/InlineSpinner";
+import PaginationControls from "../components/PaginationControls";
+import { usePagination } from "../hooks/usePagination";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const SettingsPage = () => {
@@ -47,7 +49,7 @@ const SettingsPage = () => {
   useEffect(() => {
     if (!user) return;
     const fetchApiKeys = async () => {
-      const { data } = await supabase.from("api_key_items").select("*").eq("user_id", user.id);
+      const { data } = await supabase.from("api_key_items").select("*").eq("UserId", user.id);
       if (data) setApiKeys(data);
     };
     fetchApiKeys();
@@ -183,6 +185,8 @@ const SettingsPage = () => {
   });
 
   const uniqueModules = Array.from(new Set(appLogs.map((l) => l.action || "")));
+  const logsPagination = usePagination(filteredLogs);
+  const apiKeysPagination = usePagination(apiKeys);
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 h-full flex flex-col">
@@ -371,7 +375,10 @@ const SettingsPage = () => {
               <div className="flex items-center gap-3">
                 <select
                   value={logStatusFilter}
-                  onChange={(e) => setLogStatusFilter(e.target.value)}
+                  onChange={(e) => {
+                    setLogStatusFilter(e.target.value);
+                    logsPagination.setCurrentPage(1);
+                  }}
                   className="bg-surface border border-slate-700 text-slate-200 text-sm rounded px-3 py-1.5 focus:outline-none focus:border-primary"
                 >
                   <option value="all">All Statuses</option>
@@ -382,7 +389,10 @@ const SettingsPage = () => {
 
                 <select
                   value={logModuleFilter}
-                  onChange={(e) => setLogModuleFilter(e.target.value)}
+                  onChange={(e) => {
+                    setLogModuleFilter(e.target.value);
+                    logsPagination.setCurrentPage(1);
+                  }}
                   className="bg-surface border border-slate-700 text-slate-200 text-sm rounded px-3 py-1.5 focus:outline-none focus:border-primary"
                 >
                   <option value="all">All Modules</option>
@@ -414,7 +424,7 @@ const SettingsPage = () => {
               ) : (
                 <div className="space-y-1.5 flex flex-col-reverse">
                   {/* flex-col-reverse with reversed map so newest is physically at bottom but visually flows nicely, or just regular if ordered from supabase */}
-                  {filteredLogs.map((log) => (
+                  {logsPagination.paginatedItems.map((log) => (
                     <div key={log.id} className="bg-surface border border-slate-800/80 rounded py-2.5 px-3 flex flex-col sm:flex-row sm:items-center gap-3 font-mono text-[11px] align-top">
                       <div className="w-32 shrink-0 text-slate-500 truncate" title={new Date(log.created_at).toLocaleString()}>
                         {new Date(log.created_at).toLocaleTimeString()} - {new Date(log.created_at).toLocaleDateString()}
@@ -437,6 +447,20 @@ const SettingsPage = () => {
                 </div>
               )}
             </div>
+
+            {filteredLogs.length > 0 ? (
+              <PaginationControls
+                currentPage={logsPagination.currentPage}
+                pageSize={logsPagination.pageSize}
+                totalItems={logsPagination.totalItems}
+                totalPages={logsPagination.totalPages}
+                startItem={logsPagination.startItem}
+                endItem={logsPagination.endItem}
+                onPageChange={logsPagination.setCurrentPage}
+                onPageSizeChange={logsPagination.setPageSize}
+                itemLabel="logs"
+              />
+            ) : null}
           </div>
         )}
 
@@ -469,9 +493,9 @@ const SettingsPage = () => {
                     ) : (
                       <>
                         <option value="" disabled>Select an API...</option>
-                        {apiKeys.map((keyObj: any) => (
-                          <option key={keyObj.id} value={keyObj.id}>
-                            {keyObj.provider} - {keyObj.key_name}
+                        {apiKeysPagination.paginatedItems.map((keyObj: any) => (
+                          <option key={keyObj.Id ?? keyObj.id} value={keyObj.Id ?? keyObj.id}>
+                            {(keyObj.Provider ?? keyObj.provider)} - {(keyObj.Name ?? keyObj.key_name)}
                           </option>
                         ))}
                       </>
@@ -487,14 +511,30 @@ const SettingsPage = () => {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {apiKeys.map((k: any) => (
-                        <div key={k.id} className="flex items-center justify-between p-3 bg-surface border border-slate-800 rounded">
-                          <span className="text-sm font-medium text-slate-200">{k.provider}</span>
-                          <span className="text-xs font-mono text-slate-500">{k.key_name}</span>
+                      {apiKeysPagination.paginatedItems.map((k: any) => (
+                        <div key={k.Id ?? k.id} className="flex items-center justify-between p-3 bg-surface border border-slate-800 rounded">
+                          <span className="text-sm font-medium text-slate-200">{k.Provider ?? k.provider}</span>
+                          <span className="text-xs font-mono text-slate-500">{k.Name ?? k.key_name}</span>
                         </div>
                       ))}
                     </div>
                   )}
+
+                  {apiKeys.length > 0 ? (
+                    <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/20">
+                      <PaginationControls
+                        currentPage={apiKeysPagination.currentPage}
+                        pageSize={apiKeysPagination.pageSize}
+                        totalItems={apiKeysPagination.totalItems}
+                        totalPages={apiKeysPagination.totalPages}
+                        startItem={apiKeysPagination.startItem}
+                        endItem={apiKeysPagination.endItem}
+                        onPageChange={apiKeysPagination.setCurrentPage}
+                        onPageSizeChange={apiKeysPagination.setPageSize}
+                        itemLabel="keys"
+                      />
+                    </div>
+                  ) : null}
                   
                   <button onClick={() => navigate("/api-vault")} className="mt-4 text-sm text-primary hover:underline font-medium">
                     → Manage keys in API Vault

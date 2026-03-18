@@ -1,3 +1,6 @@
+import PaginationControls from "../../../components/PaginationControls";
+import { usePagination } from "../../../hooks/usePagination";
+
 interface TeamMember {
   id: string;
   email: string;
@@ -31,6 +34,8 @@ const ROLE_STYLES: Record<string, string> = {
 };
 
 const TeamCard = ({ members }: Props) => {
+  const pagination = usePagination(members);
+
   if (members.length === 0) {
     return (
       <div className="glass-panel p-5 space-y-3">
@@ -56,7 +61,7 @@ const TeamCard = ({ members }: Props) => {
       </div>
 
       <ul className="space-y-2">
-        {members.map((member) => {
+        {pagination.paginatedItems.map((member) => {
           const initials = member.email
             .split("@")[0]
             .slice(0, 2)
@@ -97,6 +102,20 @@ const TeamCard = ({ members }: Props) => {
           );
         })}
       </ul>
+
+      <div className="rounded-xl border border-slate-800 bg-slate-900/20">
+        <PaginationControls
+          currentPage={pagination.currentPage}
+          pageSize={pagination.pageSize}
+          totalItems={pagination.totalItems}
+          totalPages={pagination.totalPages}
+          startItem={pagination.startItem}
+          endItem={pagination.endItem}
+          onPageChange={pagination.setCurrentPage}
+          onPageSizeChange={pagination.setPageSize}
+          itemLabel="members"
+        />
+      </div>
     </div>
   );
 };
