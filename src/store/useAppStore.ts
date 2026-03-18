@@ -18,6 +18,15 @@ interface AppState {
   setProjectsLoading: (val: boolean) => void;
   setProjectsError: (val: string | null) => void;
   resetProjects: () => void;
+
+  // New states for User Preferences
+  userProfile: any | null;
+  appSettings: any | null;
+  appLogs: any[];
+  setUserProfile: (profile: any | null) => void;
+  setAppSettings: (settings: any | null) => void;
+  setAppLogs: (logs: any[]) => void;
+  addAppLog: (log: any) => void;
 }
 
 const useAppStore = create<AppState>((set, get) => ({
@@ -77,6 +86,14 @@ const useAppStore = create<AppState>((set, get) => ({
       projectsError: null,
       projectsLoading: false,
     }),
+
+  userProfile: null,
+  appSettings: null,
+  appLogs: [],
+  setUserProfile: (userProfile) => set({ userProfile }),
+  setAppSettings: (appSettings) => set({ appSettings }),
+  setAppLogs: (appLogs) => set({ appLogs }),
+  addAppLog: (log) => set((state) => ({ appLogs: [log, ...state.appLogs] })),
 }));
 
 export default useAppStore;

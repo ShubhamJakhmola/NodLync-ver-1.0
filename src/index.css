@@ -26,3 +26,17 @@ body {
 .btn-ghost {
   @apply inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-slate-200 hover:bg-slate-800 transition;
 }
+
+/* Global Light Theme Invert Strategy for Tailwind */
+html.light {
+  filter: invert(1) hue-rotate(180deg);
+  background-color: #f0e8d5; /* Inverted 0f172a roughly */
+}
+
+/* Prevent images/media and primary tokens from being inverted */
+html.light img, 
+html.light video,
+html.light iframe,
+html.light svg {
+  filter: invert(1) hue-rotate(180deg);
+}

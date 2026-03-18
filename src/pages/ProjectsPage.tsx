@@ -30,6 +30,7 @@ const ProjectsPage = () => {
   } = useAppStore();
   const [formBusy, setFormBusy] = useState(false);
 
+  // Load projects on mount / user change
   useEffect(() => {
     if (!user) {
       console.log("[ProjectsPage] No user, skipping load");
@@ -40,7 +41,10 @@ const ProjectsPage = () => {
       setProjectsLoading(true);
       setProjectsError(null);
       const { data, error } = await getProjects(user.id);
-      console.log("[ProjectsPage] Load result:", { count: data?.length ?? 0, hasError: !!error });
+      console.log("[ProjectsPage] Load result:", {
+        count: data?.length ?? 0,
+        hasError: !!error,
+      });
       if (error) {
         console.error("[ProjectsPage] Load error:", error.message);
         setProjectsError(error.message);
@@ -52,7 +56,10 @@ const ProjectsPage = () => {
           console.log("[ProjectsPage] No projects, switching to create mode");
           setIsCreateMode(true);
         } else {
-          console.log("[ProjectsPage] Selecting first project:", list[0].id);
+          console.log(
+            "[ProjectsPage] Selecting first project:",
+            list[0].id
+          );
           setSelectedProject(list[0]);
           setIsCreateMode(false);
         }
@@ -69,6 +76,7 @@ const ProjectsPage = () => {
     setSelectedProject,
   ]);
 
+  // ── Create ──────────────────────────────────────────────────────────────
   const handleCreateProject = async (payload: {
     name: string;
     description: string;
@@ -94,13 +102,18 @@ const ProjectsPage = () => {
     setFormBusy(false);
   };
 
+  // ── Update ──────────────────────────────────────────────────────────────
   const handleUpdateProject = async (payload: {
     name: string;
     description: string;
     status: ProjectStatus;
   }) => {
     if (!selectedProject) return;
-    console.log("[ProjectsPage] Updating project:", selectedProject.id, payload);
+    console.log(
+      "[ProjectsPage] Updating project:",
+      selectedProject.id,
+      payload
+    );
     setFormBusy(true);
     setProjectsError(null);
     const { data, error } = await updateProject(selectedProject.id, payload);
@@ -114,10 +127,16 @@ const ProjectsPage = () => {
     setFormBusy(false);
   };
 
+  // ── Delete ──────────────────────────────────────────────────────────────
   const handleDeleteProject = async () => {
     if (!selectedProject) return;
     const nextProject = projects.find((p) => p.id !== selectedProject.id);
-    console.log("[ProjectsPage] Deleting project:", selectedProject.id, "next:", nextProject?.id ?? "none");
+    console.log(
+      "[ProjectsPage] Deleting project:",
+      selectedProject.id,
+      "next:",
+      nextProject?.id ?? "none"
+    );
     setFormBusy(true);
     setProjectsError(null);
     const { error } = await deleteProject(selectedProject.id);
@@ -131,28 +150,47 @@ const ProjectsPage = () => {
         setSelectedProject(nextProject);
         setIsCreateMode(false);
       } else {
+        setSelectedProject(null);
         setIsCreateMode(true);
       }
     }
     setFormBusy(false);
   };
 
+  // ── Select project from list ────────────────────────────────────────────
+  const handleSelectProject = (project: typeof selectedProject) => {
+    if (!project) return;
+    setProjectsError(null);
+    setSelectedProject(project);
+    setIsCreateMode(false);
+  };
+
+  // ── New project ─────────────────────────────────────────────────────────
+  const handleCreateMode = () => {
+    setProjectsError(null);
+    setIsCreateMode(true);
+  };
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[320px,1fr] gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-[300px,1fr] gap-6 h-full min-h-[600px]">
+      {/* Left panel: project list */}
       <ProjectList
         projects={projects}
-        selectedId={selectedProject?.id}
-        onSelect={(proj) => setSelectedProject(proj)}
-        onCreate={() => setIsCreateMode(true)}
+        selectedId={isCreateMode ? undefined : selectedProject?.id}
+        onSelect={handleSelectProject}
+        onCreate={handleCreateMode}
         loading={projectsLoading}
       />
 
+      {/* Right panel: always visible */}
       <div className="flex flex-col gap-4">
         {projectsError && (
-          <div className="glass-panel border border-rose-800 bg-rose-900/40 px-4 py-3 text-sm text-rose-100">
-            {projectsError}
+          <div className="glass-panel border border-rose-800 bg-rose-900/40 px-4 py-3 text-sm text-rose-100 flex items-center gap-2">
+            <span>⚠️</span>
+            <span>{projectsError}</span>
           </div>
         )}
+
         <ProjectForm
           mode={isCreateMode || !selectedProject ? "create" : "edit"}
           initial={isCreateMode ? null : selectedProject}
@@ -161,17 +199,42 @@ const ProjectsPage = () => {
               ? handleCreateProject
               : handleUpdateProject
           }
-          onDelete={!isCreateMode ? handleDeleteProject : undefined}
-          onCancel={() => setIsCreateMode(false)}
+          onDelete={!isCreateMode && selectedProject ? handleDeleteProject : undefined}
+          onCancel={
+            // Only show cancel in create mode when there are existing projects
+            isCreateMode && projects.length > 0
+              ? () => {
+                  setIsCreateMode(false);
+                  if (selectedProject) setSelectedProject(selectedProject);
+                  else if (projects.length > 0) setSelectedProject(projects[0]);
+                }
+              : undefined
+          }
           busy={formBusy}
           error={projectsError ?? undefined}
         />
+
+        {/* Created at metadata for selected project */}
         {!isCreateMode && selectedProject && (
-          <div className="glass-panel p-4">
-            <p className="text-sm text-slate-400">Created</p>
-            <p className="text-lg font-semibold">
-              {formatDateTime(selectedProject.created_at)}
-            </p>
+          <div className="glass-panel p-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">
+                Created
+              </p>
+              <p className="text-sm font-medium text-slate-200">
+                {formatDateTime(selectedProject.created_at ?? "")}
+              </p>
+            </div>
+            {selectedProject.updated_at && (
+              <div className="text-right">
+                <p className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">
+                  Last Updated
+                </p>
+                <p className="text-sm font-medium text-slate-200">
+                  {formatDateTime(selectedProject.updated_at)}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

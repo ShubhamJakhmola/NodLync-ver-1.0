@@ -6,15 +6,14 @@ import LoadingScreen from "./components/LoadingScreen";
 import AppLayout from "./layouts/AppLayout";
 import DashboardPage from "./pages/DashboardPage";
 import ProjectsPage from "./pages/ProjectsPage";
+import ProjectManagerPage from "./pages/ProjectManagerPage";
+import MyStuffPage from "./pages/MyStuffPage";
 import ApiVaultPage from "./pages/ApiVaultPage";
 import ApiTesterPage from "./pages/ApiTesterPage";
 import AiPlaygroundPage from "./pages/AiPlaygroundPage";
 import WorkflowsPage from "./pages/WorkflowsPage";
 import MeetingsPage from "./pages/MeetingsPage";
-import LogsPage from "./pages/LogsPage";
-import ReportsPage from "./pages/ReportsPage";
 import SettingsPage from "./pages/SettingsPage";
-import ProfilePage from "./pages/ProfilePage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import useAppStore from "./store/useAppStore";
@@ -63,15 +62,14 @@ function App() {
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="projects" element={<ProjectsPage />} />
+            <Route path="projects/:id" element={<ProjectManagerPage />} />
+            <Route path="my-stuff" element={<MyStuffPage />} />
             <Route path="api-vault" element={<ApiVaultPage />} />
             <Route path="api-tester" element={<ApiTesterPage />} />
             <Route path="ai-playground" element={<AiPlaygroundPage />} />
             <Route path="workflows" element={<WorkflowsPage />} />
             <Route path="meetings" element={<MeetingsPage />} />
-            <Route path="logs" element={<LogsPage />} />
-            <Route path="reports" element={<ReportsPage />} />
             <Route path="settings" element={<SettingsPage />} />
-            <Route path="profile" element={<ProfilePage />} />
           </Route>
         </Route>
 
