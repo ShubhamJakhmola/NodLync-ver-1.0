@@ -10,7 +10,7 @@ interface Props {
   tasks: TaskItem[];
   projectId: string;
   userId: string;
-  onAdd: (title: string) => Promise<void>;
+  onAdd: (payload: { title: string; deadline?: string | null }) => Promise<void>;
   onUpdate: (taskId: string, updates: Pick<TaskItem, "priority" | "status" | "is_completed">) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onBulkDelete: (ids: string[]) => Promise<void>;
@@ -31,9 +31,17 @@ const STATUS_OPTIONS: Array<{ value: TaskItem["status"]; label: string }> = [
 
 const TasksPanel = ({ tasks, onAdd, onUpdate, onDelete, onBulkDelete, busy }: Props) => {
   const [input, setInput] = useState("");
+  const [deadline, setDeadline] = useState<string>("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "done" | "not_done" | "in_progress">("all");
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const formatDeadline = (d: string | null | undefined) => {
+    if (!d) return null;
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return d;
+    return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
 
   const filtered =
     filter === "all"
@@ -49,8 +57,12 @@ const TasksPanel = ({ tasks, onAdd, onUpdate, onDelete, onBulkDelete, busy }: Pr
 
   const handleAdd = async () => {
     if (!input.trim()) return;
-    await onAdd(input.trim());
+    await onAdd({
+      title: input.trim(),
+      deadline: deadline ? deadline : null,
+    });
     setInput("");
+    setDeadline("");
   };
 
   const handleUpdate = async (
@@ -109,6 +121,13 @@ const TasksPanel = ({ tasks, onAdd, onUpdate, onDelete, onBulkDelete, busy }: Pr
             onKeyDown={(e) => {
               if (e.key === "Enter") handleAdd();
             }}
+          />
+          <input
+            type="date"
+            className="w-36 rounded-lg border border-slate-700 bg-surface px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary transition placeholder:text-slate-600"
+            value={deadline}
+            onChange={(e) => setDeadline(e.target.value)}
+            aria-label="Task deadline"
           />
           <button className="btn-primary text-sm px-4" onClick={handleAdd} disabled={busy || !input.trim()}>
             Add Task
@@ -171,6 +190,11 @@ const TasksPanel = ({ tasks, onAdd, onUpdate, onDelete, onBulkDelete, busy }: Pr
                   <span className="text-xs text-slate-600 hidden group-hover:inline">
                     {new Date(task.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                   </span>
+                  {task.deadline && (
+                    <span className="text-[10px] text-slate-500 font-mono opacity-80">
+                      Due {formatDeadline(task.deadline)}
+                    </span>
+                  )}
                   <button className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-rose-400 transition text-sm" onClick={() => onDelete(task.id)} title="Delete task">
                     ×
                   </button>

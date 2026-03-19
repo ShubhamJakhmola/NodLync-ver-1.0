@@ -10,7 +10,7 @@ interface Props {
   milestones: Milestone[];
   projectId: string;
   userId: string;
-  onAdd: (title: string) => Promise<void>;
+  onAdd: (payload: { title: string; deadline?: string | null }) => Promise<void>;
   onToggle: (milestone: Milestone) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onBulkDelete: (ids: string[]) => Promise<void>;
@@ -20,8 +20,16 @@ interface Props {
 const MilestonesCard = ({ milestones, onAdd, onToggle, onDelete, onBulkDelete, busy }: Props) => {
   const [adding, setAdding] = useState(false);
   const [input, setInput] = useState("");
+  const [deadline, setDeadline] = useState<string>("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const formatDeadline = (d: string | null | undefined) => {
+    if (!d) return null;
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return d;
+    return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
   
   const completedCount = milestones.filter((m) => m.status === "completed").length;
   const pagination = usePagination(milestones);
@@ -30,8 +38,12 @@ const MilestonesCard = ({ milestones, onAdd, onToggle, onDelete, onBulkDelete, b
 
   const handleAdd = async () => {
     if (!input.trim()) return;
-    await onAdd(input.trim());
+    await onAdd({
+      title: input.trim(),
+      deadline: deadline ? deadline : null,
+    });
     setInput("");
+    setDeadline("");
     setAdding(false);
   };
 
@@ -78,6 +90,13 @@ const MilestonesCard = ({ milestones, onAdd, onToggle, onDelete, onBulkDelete, b
               if (e.key === "Escape") setAdding(false);
             }}
           />
+          <input
+            type="date"
+            className="w-36 rounded-lg border border-slate-700 bg-surface px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary transition placeholder:text-slate-600"
+            value={deadline}
+            onChange={(e) => setDeadline(e.target.value)}
+            aria-label="Milestone deadline"
+          />
           <button className="btn-primary text-xs px-4" onClick={handleAdd} disabled={busy || !input.trim()}>
             ADD
           </button>
@@ -122,6 +141,11 @@ const MilestonesCard = ({ milestones, onAdd, onToggle, onDelete, onBulkDelete, b
                   <span className={`flex-1 text-sm leading-snug font-medium ${isCompleted ? "line-through text-slate-600" : "text-slate-300"}`}>
                     {m.title}
                   </span>
+                  {m.deadline && (
+                    <span className="text-[10px] text-slate-500 font-mono opacity-80">
+                      Due {formatDeadline(m.deadline)}
+                    </span>
+                  )}
                   <button 
                     className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-rose-500 transition-all p-1" 
                     onClick={() => onDelete(m.id)} 

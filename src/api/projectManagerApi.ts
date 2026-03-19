@@ -7,6 +7,7 @@ export interface Milestone {
   project_id: string;
   user_id: string;
   title: string;
+  deadline?: string | null;
   status: "not_started" | "in_progress" | "completed";
   created_at: string;
 }
@@ -16,6 +17,7 @@ export interface TaskItem {
   project_id: string;
   milestone_id: string;
   title: string;
+  deadline?: string | null;
   status: "not_done" | "in_progress" | "done";
   is_completed: boolean;
   priority: "low" | "medium" | "high";

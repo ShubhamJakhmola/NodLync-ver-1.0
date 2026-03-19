@@ -6,6 +6,7 @@ create table if not exists public.milestones (
   project_id uuid references public.projects(id) on delete cascade not null,
   user_id uuid references auth.users(id) on delete cascade not null,
   title text not null,
+  deadline date,
   status text not null check (status in ('not_started', 'in_progress', 'completed')) default 'not_started',
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
@@ -16,6 +17,7 @@ create table if not exists public.task_items (
   project_id uuid references public.projects(id) on delete cascade not null,
   milestone_id uuid references public.milestones(id) on delete cascade not null,
   title text not null,
+  deadline date,
   status text not null check (status in ('not_done', 'in_progress', 'done')) default 'not_done',
   is_completed boolean not null default false,
   priority text not null check (priority in ('low', 'medium', 'high')) default 'medium',
@@ -62,6 +64,10 @@ alter table public.task_items enable row level security;
 alter table public.project_logs enable row level security;
 alter table public.project_members enable row level security;
 alter table public.project_reports enable row level security;
+
+-- Existing deployments might already have the tables; ensure the new columns exist.
+alter table public.milestones add column if not exists deadline date;
+alter table public.task_items add column if not exists deadline date;
 
 -- Policies (Simplified for demonstration: owner or team access)
 

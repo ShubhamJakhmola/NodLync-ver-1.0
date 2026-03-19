@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getProjects } from "../api/projectsApi";
+import { supabase } from "../api/supabaseClient";
 import {
   getMilestones,
   getTaskItems,
@@ -202,7 +203,6 @@ function downloadTxt(filename: string, content: string) {
 
 const OverviewTab = ({
   project,
-  tasks,
   milestones,
   logs,
   onLogSubmit,
@@ -212,41 +212,20 @@ const OverviewTab = ({
   onDeleteMilestone,
 }: {
   project: Project;
-  tasks: TaskItem[];
   milestones: Milestone[];
   logs: ProjectLog[];
   onLogSubmit: (payload: any) => Promise<void>;
   userId: string;
-  onAddMilestone: (title: string) => Promise<void>;
+  onAddMilestone: (payload: { title: string; deadline?: string | null }) => Promise<void>;
   onUpdateMilestone: (m: any) => Promise<void>;
   onDeleteMilestone: (id: string) => Promise<void>;
 }) => {
-  const completedTasks = tasks.filter(t => t.status === "done").length;
-  const progress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
-  
   const lastCompletedMilestone = [...milestones].reverse().find(m => m.status === 'completed');
   const inProgressMilestone = milestones.find(m => m.status === 'in_progress');
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[1fr,350px] gap-6">
       <div className="space-y-6">
-        {/* Project Summary */}
-        <div className="glass-panel p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-bold text-slate-100">{project.name}</h2>
-              <p className="text-sm text-slate-400">Current Status: <span className="text-primary font-medium capitalize">{project.status}</span></p>
-            </div>
-            <div className="text-right">
-              <span className="text-3xl font-bold text-primary">{progress}%</span>
-              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Overall Progress</p>
-            </div>
-          </div>
-          <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-            <div className="h-full bg-primary transition-all duration-500" style={{ width: `${progress}%` }} />
-          </div>
-        </div>
-
         {/* Recent Milestones */}
         <div className="glass-panel p-6">
           <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Milestone Pulse</h3>
@@ -436,12 +415,13 @@ const ProjectManagerPage = () => {
     }
   };
 
-  const handleAddMilestone = async (title: string) => {
+  const handleAddMilestone = async (payload: { title: string; deadline?: string | null }) => {
     if (!project || !user) return;
     const { data } = await createMilestone({
       project_id: project.id,
       user_id: user.id,
-      title,
+      title: payload.title,
+      deadline: payload.deadline ? payload.deadline : null,
       status: 'not_started'
     });
     if (data) setMilestones(prev => [...prev, data]);
@@ -476,15 +456,16 @@ const ProjectManagerPage = () => {
     setMilestones(prev => prev.filter(m => m.id !== mid));
   };
 
-  const handleAddTask = async (title: string, milestoneId: string) => {
+  const handleAddTask = async (payload: { title: string; deadline?: string | null }, milestoneId: string) => {
     if (!project || !user) return;
     const insertPayload = {
       project_id: project.id,
       milestone_id: milestoneId,
-      title,
+      title: payload.title,
       status: "not_done",
       is_completed: false,
       priority: "medium",
+      deadline: payload.deadline ? payload.deadline : null,
     };
 
     // eslint-disable-next-line no-console
@@ -586,7 +567,6 @@ const ProjectManagerPage = () => {
         return (
           <OverviewTab
             project={project}
-            tasks={tasks}
             milestones={milestones}
             logs={logs}
             onLogSubmit={handleLogSubmit}
@@ -631,7 +611,7 @@ const ProjectManagerPage = () => {
                     tasks={tasks.filter(t => t.milestone_id === m.id)}
                     projectId={project.id}
                     userId={user.id}
-                    onAdd={(title) => handleAddTask(title, m.id)}
+                    onAdd={(payload) => handleAddTask(payload, m.id)}
                     onUpdate={async (taskId, updates) => {
                       const updatePayload = {
                         priority: updates.priority,
@@ -729,7 +709,6 @@ const ProjectManagerPage = () => {
                   onDeleteSelected={async (ids) => {
                     // eslint-disable-next-line no-console
                     console.log("DELETE PAYLOAD - project_logs", { ids });
-                    const { supabase } = await import("../api/supabaseClient");
                     const resp = await supabase.from("project_logs").delete().in("id", ids);
                     // eslint-disable-next-line no-console
                     console.log("RESPONSE - project_logs (delete selected)", resp);
