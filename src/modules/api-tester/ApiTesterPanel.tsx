@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import ModuleHeader from "../../components/ModuleHeader";
+import ApiExplorerPanel from "./ApiExplorerPanel";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -13,6 +14,7 @@ type KeyValueRow = {
 type AuthMode = "none" | "bearer";
 type CodeLanguage = "curl" | "node" | "python" | "php";
 type RightTab = "response" | "code";
+type ApiTesterMainTab = "tester" | "explore";
 
 type SavedRequest = {
   method: HttpMethod;
@@ -202,6 +204,7 @@ const stripQueryToParams = (rawUrl: string) => {
 const escapeSingleQuotes = (s: string) => s.replace(/'/g, `'\\''`);
 
 const ApiTesterPanel = () => {
+  const [mainTab, setMainTab] = useState<ApiTesterMainTab>("tester");
   const [method, setMethod] = useState<HttpMethod>("GET");
   const [url, setUrl] = useState("");
   const [params, setParams] = useState<KeyValueRow[]>([emptyRow()]);
@@ -629,8 +632,49 @@ const ApiTesterPanel = () => {
     }
   };
 
+  if (mainTab === "explore") {
+    return (
+      <div className="space-y-4">
+        <div className="inline-flex rounded-xl bg-panel/70 border border-stroke text-sm overflow-hidden">
+          <button
+            type="button"
+            className="px-5 py-2.5 text-fg-muted hover:text-fg"
+            onClick={() => setMainTab("tester")}
+          >
+            API Tester
+          </button>
+          <button
+            type="button"
+            className="px-5 py-2.5 bg-surface text-fg border-l border-stroke"
+            onClick={() => setMainTab("explore")}
+          >
+            Explore API
+          </button>
+        </div>
+        <ApiExplorerPanel />
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-6 h-[calc(100vh-theme(spacing.16))]">
+    <div className="space-y-4">
+      <div className="inline-flex rounded-xl bg-panel/70 border border-stroke text-sm overflow-hidden">
+        <button
+          type="button"
+          className="px-5 py-2.5 bg-surface text-fg"
+          onClick={() => setMainTab("tester")}
+        >
+          API Tester
+        </button>
+        <button
+          type="button"
+          className="px-5 py-2.5 text-fg-muted hover:text-fg border-l border-stroke"
+          onClick={() => setMainTab("explore")}
+        >
+          Explore API
+        </button>
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-6 h-[calc(100vh-theme(spacing.16))]">
       {/* Request builder */}
       <div className="glass-panel flex flex-col overflow-hidden">
         <ModuleHeader
@@ -877,6 +921,7 @@ const ApiTesterPanel = () => {
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 };

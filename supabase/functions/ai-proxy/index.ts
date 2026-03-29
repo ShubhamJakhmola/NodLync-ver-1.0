@@ -101,7 +101,42 @@ function getUserJwt(req: Request, body?: Record<string, unknown> | null): string
 
 function getProviderConfig(provider: string) {
   const key = provider.toLowerCase();
-  return PROVIDERS[key] || PROVIDERS["openai"];
+  return PROVIDERS[key];
+}
+
+function normalizeBaseUrl(baseUrl: string) {
+  return baseUrl.trim().replace(/\/+$/, "");
+}
+
+function inferOpenAiCompatibleBaseUrl(provider: string) {
+  const key = provider.toLowerCase();
+  if (key.includes("openai")) return "https://api.openai.com/v1";
+  if (key.includes("groq")) return "https://api.groq.com/openai/v1";
+  if (key.includes("mistral")) return "https://api.mistral.ai/v1";
+  if (key.includes("openrouter")) return "https://openrouter.ai/api/v1";
+  if (key.includes("nvidia")) return "https://integrate.api.nvidia.com/v1";
+  if (key.includes("together")) return "https://api.together.xyz/v1";
+  if (key.includes("perplexity")) return "https://api.perplexity.ai";
+  if (key.includes("fireworks")) return "https://api.fireworks.ai/inference/v1";
+  if (key.includes("deepseek")) return "https://api.deepseek.com/v1";
+  if (key.includes("xai") || key.includes("grok")) return "https://api.x.ai/v1";
+  return undefined;
+}
+
+function resolveBaseUrl(provider: string, requestedBaseUrl?: unknown) {
+  if (typeof requestedBaseUrl === "string" && requestedBaseUrl.trim()) {
+    return normalizeBaseUrl(requestedBaseUrl);
+  }
+
+  const inferred = inferOpenAiCompatibleBaseUrl(provider);
+  if (inferred) return inferred;
+
+  const knownProvider = getProviderConfig(provider);
+  if (knownProvider?.baseUrl) return knownProvider.baseUrl;
+
+  throw new Error(
+    `No base URL configured for provider "${provider}". Save or send a compatible base URL for this provider.`,
+  );
 }
 
 function estimateCost(model: string, tokens: number) {
@@ -111,21 +146,9 @@ function estimateCost(model: string, tokens: number) {
   return tokens * 0.000005;
 }
 
-function toOpenAiBaseUrl(provider: string) {
-  if (provider.includes("openai")) return "https://api.openai.com/v1";
-  if (provider.includes("groq")) return "https://api.groq.com/openai/v1";
-  if (provider.includes("mistral")) return "https://api.mistral.ai/v1";
-  if (provider.includes("openrouter")) return "https://openrouter.ai/api/v1";
-  return "https://api.openai.com/v1";
-}
-
-function canGenerateImages(provider: string, model: string) {
-  const providerKey = provider.toLowerCase();
+function canGenerateImages(model: string) {
   const modelKey = model.toLowerCase();
-  return (
-    providerKey.includes("openai") &&
-    (modelKey.includes("gpt-image") || modelKey.includes("dall-e") || modelKey.includes("image"))
-  );
+  return modelKey.includes("gpt-image") || modelKey.includes("dall-e") || modelKey.includes("image");
 }
 
 // ================= MAIN =================
@@ -209,18 +232,19 @@ serve(async (req) => {
       if (error || !keyRow) return json({ error: "Key not found" }, 404);
 
       const provider = String((body as any).provider || (keyRow as any)[vault.providerCol] || "openai").toLowerCase();
+      const baseUrl = resolveBaseUrl(provider, (body as any).baseUrl);
       const apiKey = await decrypt(String((keyRow as any)[vault.encryptedCol]), String((keyRow as any)[vault.ivCol]));
       const requestedModel = String(model || "").trim();
 
-      if (!canGenerateImages(provider, requestedModel)) {
+      if (!canGenerateImages(requestedModel)) {
         return json({
           data: `This is a text-only model (${requestedModel || provider}). It can't generate images, so I can help by writing a stronger image prompt instead.`,
           mediaType: "text",
         });
       }
 
-      if (provider.includes("openai")) {
-        const response = await fetch(`${toOpenAiBaseUrl(provider)}/images/generations`, {
+      if (canGenerateImages(requestedModel)) {
+        const response = await fetch(`${baseUrl}/images/generations`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -245,7 +269,7 @@ serve(async (req) => {
         return json({ data: image, mediaType: "image" });
       }
 
-      const response = await fetch(`${toOpenAiBaseUrl(provider)}/chat/completions`, {
+      const response = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -289,8 +313,9 @@ serve(async (req) => {
       if (error || !keyRow) return json({ error: "Key not found" }, 404);
 
       const provider = String((body as any).provider || (keyRow as any)[vault.providerCol] || "openai").toLowerCase();
+      const baseUrl = resolveBaseUrl(provider, (body as any).baseUrl);
       const apiKey = await decrypt(String((keyRow as any)[vault.encryptedCol]), String((keyRow as any)[vault.ivCol]));
-      const response = await fetch(`${toOpenAiBaseUrl(provider)}/chat/completions`, {
+      const response = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -336,8 +361,8 @@ serve(async (req) => {
     if (error || !keyRow) return json({ error: "Key not found" }, 404);
 
     const apiKey = await decrypt(String((keyRow as any)[vault.encryptedCol]), String((keyRow as any)[vault.ivCol]));
-    const provider = String((keyRow as any)[vault.providerCol] || "openai");
-    const { baseUrl } = getProviderConfig(provider);
+    const provider = String((body as any).provider || (keyRow as any)[vault.providerCol] || "openai");
+    const baseUrl = resolveBaseUrl(provider, (body as any).baseUrl);
 
     // CALL PROVIDER
     const response = await fetch(`${baseUrl}/chat/completions`, {

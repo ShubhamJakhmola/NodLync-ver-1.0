@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { getApiVaultItems, type ApiVaultItem } from "../../api/apiVaultApi";
 import {
   detectProvider,
+  fetchNvidiaModels,
   fetchOpenRouterModels,
   getDefaultModel,
   getModelOptions,
-  isAiProvider,
   sendChatMessage,
   sortModelsPreferFree,
   type ChatMessage,
+  type ModelOption,
 } from "../../api/aiPlaygroundApi";
 import {
   deleteLikedIdea,
@@ -32,6 +33,31 @@ import { logAppEvent } from "../../utils/appLogger";
 
 function genId() {
   return Math.random().toString(36).slice(2, 10);
+}
+
+function getModelTagClass(tag: string) {
+  switch (tag) {
+    case "CHAT":
+      return "border-emerald-500/30 bg-emerald-500/12 text-emerald-300";
+    case "IMG":
+      return "border-sky-500/30 bg-sky-500/12 text-sky-300";
+    case "VIDEO":
+      return "border-violet-500/30 bg-violet-500/12 text-violet-300";
+    case "CODE":
+      return "border-amber-500/30 bg-amber-500/12 text-amber-300";
+    case "REASON":
+      return "border-fuchsia-500/30 bg-fuchsia-500/12 text-fuchsia-300";
+    case "FAST":
+      return "border-teal-500/30 bg-teal-500/12 text-teal-300";
+    case "HEAVY":
+      return "border-rose-500/30 bg-rose-500/12 text-rose-300";
+    case "FREE":
+      return "border-cyan-500/30 bg-cyan-500/12 text-cyan-300";
+    case "SAFE":
+      return "border-orange-500/30 bg-orange-500/12 text-orange-300";
+    default:
+      return "border-stroke bg-panel/60 text-fg-muted";
+  }
 }
 
 function getProviderDefaultModel(apiId: string, aiItems: ApiVaultItem[]) {
@@ -123,37 +149,70 @@ const ModelSelector = ({
 }) => {
   const selected = aiItems.find((item) => item.id === apiId);
   const cfg = selected ? detectProvider(selected) : undefined;
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [openRouterModels, setOpenRouterModels] = useState<
-    { label: string; value: string }[]
+    ModelOption[]
+  >([]);
+  const [nvidiaModels, setNvidiaModels] = useState<
+    ModelOption[]
   >([]);
   const [loading, setLoading] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadModels() {
-      if (cfg?.id !== "openrouter") {
-        setOpenRouterModels([]);
+      if (cfg?.id === "openrouter") {
+        setLoading(true);
+        try {
+          const models = await fetchOpenRouterModels();
+          if (!cancelled) {
+            setOpenRouterModels(models);
+            setNvidiaModels([]);
+          }
+        } catch (error: any) {
+          console.error("Failed to load OpenRouter models", error);
+          void logAppEvent({
+            type: "error",
+            module: "ai-playground.models",
+            message: error?.message ?? "Failed to load OpenRouter models.",
+          });
+          if (!cancelled) setOpenRouterModels([]);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
         return;
       }
 
-      setLoading(true);
-      try {
-        const models = await fetchOpenRouterModels();
-        if (!cancelled) {
-          setOpenRouterModels(models);
+      if (cfg?.id === "nvidia") {
+        setLoading(true);
+        try {
+          const models = await fetchNvidiaModels();
+          if (!cancelled) {
+            setNvidiaModels(models);
+            setOpenRouterModels([]);
+          }
+        } catch (error: any) {
+          console.error("Failed to load NVIDIA models", error);
+          void logAppEvent({
+            type: "error",
+            module: "ai-playground.models",
+            message: error?.message ?? "Failed to load NVIDIA models.",
+          });
+          if (!cancelled) setNvidiaModels([]);
+        } finally {
+          if (!cancelled) setLoading(false);
         }
-      } catch (error: any) {
-        console.error("Failed to load OpenRouter models", error);
-        void logAppEvent({
-          type: "error",
-          module: "ai-playground.models",
-          message: error?.message ?? "Failed to load OpenRouter models.",
-        });
-        if (!cancelled) setOpenRouterModels([]);
-      } finally {
-        if (!cancelled) setLoading(false);
+        return;
       }
+
+      if (!cancelled) {
+        setOpenRouterModels([]);
+        setNvidiaModels([]);
+        setLoading(false);
+      }
+        return;
     }
 
     void loadModels();
@@ -163,36 +222,114 @@ const ModelSelector = ({
     };
   }, [cfg?.id]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!dropdownRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
+
   const baseOptions =
     cfg?.id === "openrouter" && openRouterModels.length > 0
       ? openRouterModels
+      : cfg?.id === "nvidia" && nvidiaModels.length > 0
+      ? nvidiaModels
       : getModelOptions(cfg?.id ?? "openai");
 
   const options = sortModelsPreferFree(baseOptions);
+  const selectedOption = options.find((option) => option.value === value);
 
   return (
     <div className={`flex items-center gap-2 ${compact ? "" : "flex-wrap"}`}>
       <span className="text-[10px] text-fg-muted uppercase font-bold tracking-widest whitespace-nowrap">
         Model
       </span>
-      <div className="relative flex items-center">
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="bg-surface border border-stroke text-fg-secondary text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-primary min-w-0 max-w-[200px] truncate appearance-none pr-8"
+      <div ref={dropdownRef} className="relative flex flex-col gap-1 min-w-0">
+        <button
+          type="button"
+          onClick={() => !loading && setIsOpen((current) => !current)}
+          className={`flex min-w-0 items-center justify-between gap-3 rounded-lg border bg-surface px-2.5 py-1.5 text-xs transition ${
+            isOpen ? "border-primary" : "border-stroke"
+          } ${loading ? "cursor-wait text-fg-muted" : "text-fg-secondary"}`}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
           disabled={loading}
         >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          <span className="truncate max-w-[220px]">
+            {selectedOption?.label ?? "Select model"}
+          </span>
+          <span className="text-[10px] text-fg-muted">{isOpen ? "▲" : "▼"}</span>
+        </button>
         {loading && (
           <div className="absolute right-2 pointer-events-none">
             <InlineSpinner compact />
           </div>
         )}
+        {isOpen && !loading ? (
+          <div className="absolute left-0 top-full z-30 mt-1 w-[min(420px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-stroke-strong bg-panel shadow-2xl">
+            <div className="max-h-72 overflow-y-auto custom-scrollbar py-1">
+              {options.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.value);
+                    setIsOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition ${
+                    option.value === value
+                      ? "bg-primary/10 text-primary"
+                      : "text-fg-secondary hover:bg-surface/70"
+                  }`}
+                  role="option"
+                  aria-selected={option.value === value}
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm">{option.label}</span>
+                  {option.tags?.length ? (
+                    <span className="flex flex-shrink-0 flex-wrap justify-end gap-1">
+                      {option.tags.map((tag) => (
+                        <span
+                          key={`${option.value}-${tag}`}
+                          className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] ${getModelTagClass(tag)}`}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {selectedOption?.tags?.length ? (
+          <div className="flex flex-wrap gap-1">
+            {selectedOption.tags.map((tag) => (
+              <span
+                key={`${selectedOption.value}-${tag}`}
+                className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em] shadow-sm ${getModelTagClass(tag)}`}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1556,7 +1693,7 @@ const AiPlaygroundPanel = () => {
   const [apiItems, setApiItems] = useState<ApiVaultItem[]>([]);
   const [loadingKeys, setLoadingKeys] = useState(true);
 
-  const aiItems = apiItems.filter(isAiProvider);
+  const aiItems = apiItems;
   const defaultProvider = appSettings?.default_ai_provider ?? "openai";
   const userId = user?.id ?? null;
 
