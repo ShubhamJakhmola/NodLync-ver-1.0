@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import useAppStore from "../store/useAppStore";
 import { useMeetings } from "../hooks/useMeetings";
 import type { MeetingLink } from "../api/meetingsApi";
+import { logAppEvent } from "../utils/appLogger";
 import BulkDeleteBar from "../components/BulkDeleteBar";
 import IndeterminateCheckbox from "../components/IndeterminateCheckbox";
 import InlineSpinner from "../components/InlineSpinner";
@@ -55,6 +56,18 @@ const MeetingsPage = () => {
 
   const location = useLocation();
 
+  // Log meetings page view
+  useEffect(() => {
+    if (user && meetings.length > 0) {
+      void logAppEvent({
+        type: "info",
+        module: "meetings",
+        message: `Viewed meetings page with ${meetings.length} meetings`,
+        meta: { meetingCount: meetings.length },
+      });
+    }
+  }, [user, meetings.length]);
+
   useEffect(() => {
     if (!selectedMeeting) {
       const now = new Date();
@@ -77,8 +90,8 @@ const MeetingsPage = () => {
         title: selectedMeeting.title,
         platform: selectedMeeting.platform,
         meeting_url: selectedMeeting.meeting_url,
-        date: isNaN(d.getTime()) ? "" : d.toISOString().split("T")[0],
-        time: isNaN(d.getTime()) ? "" : d.toTimeString().substring(0, 5),
+        date: d.toISOString().split("T")[0],
+        time: d.toTimeString().substring(0, 5),
         description: selectedMeeting.description || "",
       });
     }

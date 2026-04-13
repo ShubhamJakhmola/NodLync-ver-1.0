@@ -6,6 +6,7 @@ import {
   revealApiVaultItem,
   type ApiVaultItem,
 } from "../../api/apiVaultApi";
+import { logAppEvent } from "../../utils/appLogger";
 import BulkDeleteBar from "../../components/BulkDeleteBar";
 import InlineSpinner from "../../components/InlineSpinner";
 import PaginationControls from "../../components/PaginationControls";
@@ -51,6 +52,18 @@ const ApiVaultPanel = () => {
 
     loadItems();
   }, [user?.id]);
+
+  // Log API vault view
+  useEffect(() => {
+    if (user && items.length > 0) {
+      void logAppEvent({
+        type: "info",
+        module: "api-vault",
+        message: `Viewed API vault with ${items.length} items`,
+        meta: { itemCount: items.length },
+      });
+    }
+  }, [user, items.length]);
 
   useEffect(() => {
     if (!copiedId) return;

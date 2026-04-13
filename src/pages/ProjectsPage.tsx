@@ -5,6 +5,7 @@ import ProjectList from "../modules/projects/ProjectList";
 import DailySummaryModal from "../modules/projects/DailySummaryModal";
 import ModuleHeader from "../components/ModuleHeader";
 import { useProjects } from "../hooks/useProjects";
+import { logAppEvent } from "../utils/appLogger";
 import type { ProjectStatus } from "../types";
 
 const ProjectsPage = () => {
@@ -30,6 +31,18 @@ const ProjectsPage = () => {
     fetchProjects();
   }, [fetchProjects]);
 
+  // Log projects page view
+  useEffect(() => {
+    if (user && projects.length > 0) {
+      void logAppEvent({
+        type: "info",
+        module: "projects",
+        message: `Viewed projects page with ${projects.length} projects`,
+        meta: { projectCount: projects.length },
+      });
+    }
+  }, [user, projects.length]);
+
   const onAddProject = async (payload: {
     name: string;
     description: string;
@@ -38,7 +51,20 @@ const ProjectsPage = () => {
     setFormBusy(true);
     try {
       await handleCreate(payload);
+      await logAppEvent({
+        type: "success",
+        module: "projects",
+        message: `Created project: ${payload.name}`,
+        meta: { name: payload.name, status: payload.status },
+      });
       setShowCreateModal(false);
+    } catch (error) {
+      await logAppEvent({
+        type: "error",
+        module: "projects",
+        message: `Failed to create project: ${payload.name}`,
+        meta: { error, name: payload.name },
+      });
     } finally {
       setFormBusy(false);
     }
@@ -53,6 +79,21 @@ const ProjectsPage = () => {
     setFormBusy(true);
     try {
       await handleUpdate(selectedProject.id, payload);
+      await logAppEvent({
+        type: "success",
+        module: "projects",
+        message: `Updated project: ${payload.name}`,
+        projectId: selectedProject.id,
+        meta: { name: payload.name, status: payload.status },
+      });
+    } catch (error) {
+      await logAppEvent({
+        type: "error",
+        module: "projects",
+        message: `Failed to update project: ${payload.name}`,
+        projectId: selectedProject.id,
+        meta: { error, name: payload.name },
+      });
     } finally {
       setFormBusy(false);
     }
@@ -64,6 +105,19 @@ const ProjectsPage = () => {
       for (const id of ids) {
         await handleDelete(id);
       }
+      await logAppEvent({
+        type: "success",
+        module: "projects",
+        message: `Deleted ${ids.length} project(s)`,
+        meta: { deletedCount: ids.length },
+      });
+    } catch (error) {
+      await logAppEvent({
+        type: "error",
+        module: "projects",
+        message: `Failed to delete ${ids.length} project(s)`,
+        meta: { error, deletedCount: ids.length },
+      });
     } finally {
       setBulkDeleting(false);
     }

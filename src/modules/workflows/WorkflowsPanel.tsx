@@ -6,6 +6,7 @@ import {
   listWorkflowsV2,
   type WorkflowV2,
 } from "../../api/workflowEditorApi";
+import { logAppEvent } from "../../utils/appLogger";
 import WorkflowEditor from "./WorkflowEditor";
 import WorkflowReactFlowView from "./WorkflowReactFlowView";
 import InlineSpinner from "../../components/InlineSpinner";
@@ -44,6 +45,18 @@ const WorkflowsPanel = () => {
       void refreshWorkflows();
     }
   }, [user]);
+
+  // Log workflows view
+  useEffect(() => {
+    if (user && workflows.length > 0) {
+      void logAppEvent({
+        type: "info",
+        module: "workflows",
+        message: `Viewed workflows with ${workflows.length} workflows`,
+        meta: { workflowCount: workflows.length },
+      });
+    }
+  }, [user, workflows.length]);
 
   const refreshWorkflows = async () => {
     if (!user) return;

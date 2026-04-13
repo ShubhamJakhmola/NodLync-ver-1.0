@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import ModuleHeader from "../../components/ModuleHeader";
 import ApiExplorerPanel from "./ApiExplorerPanel";
+import { supabase } from "../../api/supabaseClient";
+import useAppStore from "../../store/useAppStore";
+import { logAppEvent } from "../../utils/appLogger";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -12,9 +14,7 @@ type KeyValueRow = {
 };
 
 type AuthMode = "none" | "bearer";
-type CodeLanguage = "curl" | "node" | "python" | "php";
-type RightTab = "response" | "code";
-type ApiTesterMainTab = "tester" | "explore";
+type ApiTesterMainTab = "tester" | "explore" | "capture";
 
 type SavedRequest = {
   method: HttpMethod;
@@ -33,6 +33,34 @@ type SavedResponse = {
   headers?: Record<string, string>;
   bodyPreview?: string;
   errorMessage?: string;
+};
+
+type ApiHistoryItem = {
+  id: string;
+  name?: string;
+  method: HttpMethod;
+  url: string;
+  domain?: string;
+  headers: Record<string, string>;
+  params?: Record<string, string>;
+  body: any;
+  response_preview?: string;
+  status_code?: number;
+  is_favorite: boolean;
+  created_at: string;
+};
+
+type CapturedRequest = {
+  id: string;
+  method: string;
+  url: string;
+  domain?: string;
+  headers: Record<string, string>;
+  params?: Record<string, string>;
+  body: any;
+  response_body?: any;
+  status: number;
+  created_at: string;
 };
 
 const STORAGE_KEY_REQUEST = "nodlync.apiTester.lastRequest";
@@ -59,152 +87,79 @@ const normalizeUrlWithProtocol = (rawUrl: string) => {
   return hasProtocol ? trimmed : `https://${trimmed}`;
 };
 
-const splitCurlArgs = (input: string) => {
-  // Lightweight shell-like tokenizer supporting quotes and backslashes.
-  const args: string[] = [];
-  let cur = "";
-  let quote: "'" | '"' | null = null;
-  let escape = false;
-
-  for (let i = 0; i < input.length; i++) {
-    const ch = input[i];
-    if (escape) {
-      cur += ch;
-      escape = false;
-      continue;
-    }
-    if (ch === "\\") {
-      escape = true;
-      continue;
-    }
-    if (quote) {
-      if (ch === quote) quote = null;
-      else cur += ch;
-      continue;
-    }
-    if (ch === "'" || ch === '"') {
-      quote = ch;
-      continue;
-    }
-    if (/\s/.test(ch)) {
-      if (cur) {
-        args.push(cur);
-        cur = "";
-      }
-      continue;
-    }
-    cur += ch;
+const parseUrlParts = (fullUrl: string) => {
+  try {
+    const normalized = normalizeUrlWithProtocol(fullUrl);
+    const urlObj = new URL(normalized);
+    const baseUrl = `${urlObj.origin}${urlObj.pathname}`;
+    const params: KeyValueRow[] = [];
+    urlObj.searchParams.forEach((value, key) => {
+      params.push(makeRow(key, value, true));
+    });
+    return { baseUrl, params: params.length ? params : [emptyRow()] };
+  } catch {
+    return { baseUrl: fullUrl, params: [emptyRow()] };
   }
-  if (cur) args.push(cur);
-  return args;
 };
 
-const parseCurl = (curlCommand: string) => {
-  const args = splitCurlArgs(curlCommand.trim());
-  if (args.length === 0 || args[0].toLowerCase() !== "curl") {
-    throw new Error("Not a cURL command");
-  }
-
-  let method: HttpMethod = "GET";
-  const headers: Record<string, string> = {};
-  const dataParts: string[] = [];
-  let urlStr = "";
-
-  const takeValue = (i: number) => {
-    if (i + 1 >= args.length) return null;
-    return args[i + 1];
+const KeyValueEditor = ({
+  label,
+  rows,
+  setRows,
+}: {
+  label: string;
+  rows: KeyValueRow[];
+  setRows: (rows: KeyValueRow[]) => void;
+}) => {
+  const handleRowChange = (id: string, patch: Partial<KeyValueRow>) => {
+    setRows(rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   };
 
-  for (let i = 1; i < args.length; i++) {
-    const a = args[i];
-
-    if (a === "-X" || a === "--request") {
-      const v = takeValue(i);
-      if (v) {
-        const up = v.toUpperCase();
-        if (["GET", "POST", "PUT", "PATCH", "DELETE"].includes(up)) {
-          method = up as HttpMethod;
-        }
-      }
-      i++;
-      continue;
-    }
-
-    if (a === "-H" || a === "--header") {
-      const v = takeValue(i);
-      if (v) {
-        const idx = v.indexOf(":");
-        if (idx > -1) {
-          const k = v.slice(0, idx).trim();
-          const val = v.slice(idx + 1).trim();
-          if (k) headers[k] = val;
-        }
-      }
-      i++;
-      continue;
-    }
-
-    if (
-      a === "-d" ||
-      a === "--data" ||
-      a === "--data-raw" ||
-      a === "--data-binary" ||
-      a === "--data-ascii"
-    ) {
-      const v = takeValue(i);
-      if (v != null) {
-        dataParts.push(v);
-        // cURL implies POST when data is present unless overridden
-        if (method === "GET") method = "POST";
-      }
-      i++;
-      continue;
-    }
-
-    if (a === "-G" || a === "--get") {
-      method = "GET";
-      continue;
-    }
-
-    // ignore common flags with no value
-    if (a.startsWith("-")) {
-      continue;
-    }
-
-    // First non-flag arg is usually URL
-    if (!urlStr) urlStr = a;
-  }
-
-  const body = dataParts.length ? dataParts.join("&") : "";
-  return { method, url: urlStr, headers, body };
-};
-
-const headersToRows = (obj: Record<string, string>) => {
-  const rows = Object.entries(obj).map(([k, v]) => makeRow(k, v, true));
-  return rows.length ? rows : [emptyRow()];
-};
-
-const stripQueryToParams = (rawUrl: string) => {
-  const normalized = normalizeUrlWithProtocol(rawUrl);
-  const u = new URL(normalized);
-  const paramsRows: KeyValueRow[] = [];
-  u.searchParams.forEach((value, key) => {
-    paramsRows.push(makeRow(key, value, true));
-  });
-  u.search = "";
-  // Keep original protocol omission behavior for UI input: if user didn't type protocol, remove it
-  const hadProtocol = /^https?:\/\//i.test(rawUrl.trim());
-  const base = hadProtocol ? u.toString() : u.toString().replace(/^https?:\/\//i, "");
-  return {
-    baseUrl: base,
-    params: paramsRows.length ? paramsRows : [emptyRow()],
+  const handleAddRow = () => setRows([...rows, emptyRow()]);
+  const handleDeleteRow = (id: string) => {
+    const next = rows.filter((row) => row.id !== id);
+    setRows(next.length ? next : [emptyRow()]);
   };
-};
 
-const escapeSingleQuotes = (s: string) => s.replace(/'/g, `'\\''`);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between border-b border-stroke pb-2">
+        <h3 className="text-[10px] font-black text-fg-muted uppercase tracking-[0.2em]">{label}</h3>
+        <button onClick={handleAddRow} className="text-[10px] text-primary hover:text-primary-hover font-bold transition-all">+ ADD NEW ROW</button>
+      </div>
+      <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+        {rows.length === 0 ? (
+           <div className="p-10 text-center text-fg-muted italic text-[11px]">No data defined.</div>
+        ) : rows.map((row) => (
+          <div key={row.id} className="flex items-center gap-2 group p-1 hover:bg-white/5 rounded-lg transition-all">
+            <input type="checkbox" checked={row.enabled} onChange={(e) => handleRowChange(row.id, { enabled: e.target.checked })} className="rounded border-stroke bg-panel/50 h-3.5 w-3.5" />
+            <input className="w-1/3 bg-panel border-0 rounded px-3 py-1.5 text-[11px] text-fg focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-sm" placeholder="Key" value={row.key} onChange={(e) => handleRowChange(row.id, { key: e.target.value })} />
+            <input className="flex-1 bg-surface border-0 rounded px-3 py-1.5 text-[11px] text-fg focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-sm" placeholder="Value" value={row.value} onChange={(e) => handleRowChange(row.id, { value: e.target.value })} />
+            <button onClick={() => handleDeleteRow(row.id)} className="p-1.5 text-fg-muted hover:text-rose-400 group-hover:opacity-100 transition-opacity">✕</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const ApiTesterPanel = () => {
+  const user = useAppStore((s) => s.user);
   const [mainTab, setMainTab] = useState<ApiTesterMainTab>("tester");
+
+  // Log API tester view
+  useEffect(() => {
+    if (user) {
+      void logAppEvent({
+        type: "info",
+        module: "api-tester",
+        message: "Viewed API tester",
+        meta: { tab: mainTab },
+      });
+    }
+  }, [user, mainTab]);
+  
+  // Tester State
   const [method, setMethod] = useState<HttpMethod>("GET");
   const [url, setUrl] = useState("");
   const [params, setParams] = useState<KeyValueRow[]>([emptyRow()]);
@@ -212,1001 +167,325 @@ const ApiTesterPanel = () => {
   const [authMode, setAuthMode] = useState<AuthMode>("none");
   const [bearerToken, setBearerToken] = useState("");
   const [body, setBody] = useState("{\n  \n}");
-  const [jsonError, setJsonError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<SavedResponse | null>(null);
-  const [rightTab, setRightTab] = useState<RightTab>("response");
-  const [codeLang, setCodeLang] = useState<CodeLanguage>("curl");
-  const [curlImportError, setCurlImportError] = useState<string | null>(null);
+  const [testerTab, setTesterTab] = useState<"params" | "auth" | "headers" | "body">("params");
+  
+  // Lists State
+  const [apiHistory, setApiHistory] = useState<ApiHistoryItem[]>([]);
+  const [capturedRequests, setCapturedRequests] = useState<CapturedRequest[]>([]);
+  
+  // Capture Config
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [captureFilter, setCaptureFilter] = useState<"all" | "json">("all");
+  const [selectedCaptureIds, setSelectedCaptureIds] = useState<string[]>([]);
 
-  // Restore last request/response from localStorage
   useEffect(() => {
     try {
       const rawReq = localStorage.getItem(STORAGE_KEY_REQUEST);
       if (rawReq) {
         const parsed: SavedRequest = JSON.parse(rawReq);
-        setMethod(parsed.method);
-        setUrl(parsed.url);
+        setMethod(parsed.method); setUrl(parsed.url);
         setParams(parsed.params.length ? parsed.params : [emptyRow()]);
         setHeaders(parsed.headers.length ? parsed.headers : [emptyRow()]);
-        setAuthMode(parsed.authMode);
-        setBearerToken(parsed.bearerToken);
+        setAuthMode(parsed.authMode); setBearerToken(parsed.bearerToken);
         setBody(parsed.body || "{\n  \n}");
       }
       const rawRes = localStorage.getItem(STORAGE_KEY_RESPONSE);
-      if (rawRes) {
-        const parsedRes: SavedResponse = JSON.parse(rawRes);
-        setResponse(parsedRes);
-      }
-    } catch {
-      // ignore corrupted storage
-    }
+      if (rawRes) setResponse(JSON.parse(rawRes));
+    } catch { }
   }, []);
 
-  // Persist request whenever core inputs change
   useEffect(() => {
-    const payload: SavedRequest = {
-      method,
-      url,
-      params,
-      headers,
-      authMode,
-      bearerToken,
-      body,
+    const payload: SavedRequest = { method, url, params, headers, authMode, bearerToken, body };
+    localStorage.setItem(STORAGE_KEY_REQUEST, JSON.stringify(payload));
+  }, [method, url, params, headers, authMode, bearerToken, body, mainTab === "tester"]);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchData = async () => {
+      const { data: history } = await supabase.from("api_history").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+      if (history) setApiHistory(history as any);
+      const { data: captured } = await supabase.from("captured_requests").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
+      if (captured) setCapturedRequests(captured as any);
     };
-    try {
-      localStorage.setItem(STORAGE_KEY_REQUEST, JSON.stringify(payload));
-    } catch {
-      // ignore quota/storage errors
-    }
-  }, [method, url, params, headers, authMode, bearerToken, body]);
-
-  const activeParams = useMemo(
-    () => params.filter((p) => p.enabled && p.key.trim() !== ""),
-    [params]
-  );
-
-  const activeHeaders = useMemo(
-    () => headers.filter((h) => h.enabled && h.key.trim() !== ""),
-    [headers]
-  );
+    fetchData();
+    const ch = supabase.channel("realtime_reqs").on("postgres_changes", { event: "INSERT", schema: "public", table: "captured_requests", filter: `user_id=eq.${user.id}` }, (p: any) => {
+      setCapturedRequests(prev => [p.new as CapturedRequest, ...prev].slice(0, 100));
+    }).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [user]);
 
   const requestUrlWithProtocol = useMemo(() => {
     if (!url.trim()) return "";
     try {
-      const urlObj = new URL(normalizeUrlWithProtocol(url));
-      activeParams.forEach((p) => {
-        urlObj.searchParams.append(p.key, p.value);
-      });
-      return urlObj.toString();
-    } catch {
-      return normalizeUrlWithProtocol(url);
-    }
-  }, [url, activeParams]);
-
-  const finalUrl = useMemo(() => {
-    if (!url.trim()) return "";
-    try {
-      const base = url.trim();
-      const hasProtocol = /^https?:\/\//i.test(base);
-      const urlObj = new URL(hasProtocol ? base : `https://${base}`);
-      activeParams.forEach((p) => {
-        urlObj.searchParams.append(p.key, p.value);
-      });
-      // Show without auto-injecting protocol if user omitted it
-      return hasProtocol ? urlObj.toString() : urlObj.toString().replace(/^https?:\/\//i, "");
-    } catch {
-      return url;
-    }
-  }, [url, activeParams]);
-
-  const requestHeadersObj = useMemo(() => {
-    const headersObj: Record<string, string> = {};
-    activeHeaders.forEach((h) => {
-      headersObj[h.key] = h.value;
-    });
-    if (authMode === "bearer" && bearerToken.trim()) {
-      headersObj["Authorization"] = `Bearer ${bearerToken.trim()}`;
-    }
-    if (["POST", "PUT", "PATCH"].includes(method) && !headersObj["Content-Type"]) {
-      headersObj["Content-Type"] = "application/json";
-    }
-    return headersObj;
-  }, [activeHeaders, authMode, bearerToken, method]);
-
-  const handleRowChange = (
-    rows: KeyValueRow[],
-    setRows: (rows: KeyValueRow[]) => void,
-    id: string,
-    patch: Partial<KeyValueRow>
-  ) => {
-    setRows(rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
-  };
-
-  const handleAddRow = (
-    rows: KeyValueRow[],
-    setRows: (rows: KeyValueRow[]) => void
-  ) => {
-    setRows([...rows, emptyRow()]);
-  };
-
-  const handleDeleteRow = (
-    rows: KeyValueRow[],
-    setRows: (rows: KeyValueRow[]) => void,
-    id: string
-  ) => {
-    const next = rows.filter((row) => row.id !== id);
-    setRows(next.length ? next : [emptyRow()]);
-  };
-
-  const validateJsonBody = (): string | null => {
-    if (!["POST", "PUT", "PATCH"].includes(method)) return null;
-    const trimmed = body.trim();
-    if (!trimmed) return null;
-    try {
-      JSON.parse(trimmed);
-      return null;
-    } catch (err: any) {
-      return err?.message || "Invalid JSON";
-    }
-  };
-
-  const handleUrlChange = (val: string) => {
-    setCurlImportError(null);
-
-    const trimmed = val.trimStart();
-    if (/^curl(\s|$)/i.test(trimmed)) {
-      try {
-        const parsed = parseCurl(trimmed);
-        if (!parsed.url) throw new Error("cURL command missing URL");
-
-        const { baseUrl, params: parsedParams } = stripQueryToParams(parsed.url);
-
-        setMethod(parsed.method);
-        setUrl(baseUrl);
-        setParams(parsedParams);
-
-        // Pull Authorization into auth section when it's a Bearer token
-        const hdrs = { ...parsed.headers };
-        const authHeaderKey =
-          Object.keys(hdrs).find((k) => k.toLowerCase() === "authorization") ?? null;
-        if (authHeaderKey) {
-          const v = hdrs[authHeaderKey];
-          const m = v.match(/^Bearer\s+(.+)$/i);
-          if (m) {
-            setAuthMode("bearer");
-            setBearerToken(m[1]);
-            delete hdrs[authHeaderKey];
-          } else {
-            setAuthMode("none");
-            setBearerToken("");
-          }
-        }
-        setHeaders(headersToRows(hdrs));
-
-        if (parsed.body) {
-          // Prefer pretty JSON if it's JSON
-          const rawBody = parsed.body;
-          try {
-            const json = JSON.parse(rawBody);
-            setBody(JSON.stringify(json, null, 2));
-          } catch {
-            setBody(rawBody);
-          }
-        }
-
-        setRightTab("code"); // nice UX: show generated code after import
-        return;
-      } catch (e: any) {
-        setCurlImportError(e?.message || "Failed to import cURL");
-        // Fall through: still set URL text so user can edit
-      }
-    }
-
-    setUrl(val);
-  };
+      const uObj = new URL(normalizeUrlWithProtocol(url));
+      params.filter(p => p.enabled && p.key).forEach(p => uObj.searchParams.append(p.key, p.value));
+      return uObj.toString();
+    } catch { return normalizeUrlWithProtocol(url); }
+  }, [url, params]);
 
   const sendRequest = async () => {
     if (!url.trim() || loading) return;
-
-    const validationError = validateJsonBody();
-    if (validationError) {
-      setJsonError(validationError);
-      return;
-    }
-    setJsonError(null);
-
-    let requestUrl = url.trim();
-    requestUrl = normalizeUrlWithProtocol(requestUrl);
-
-    const urlObj = new URL(requestUrl);
-    activeParams.forEach((p) => {
-      urlObj.searchParams.append(p.key, p.value);
-    });
-
-    const init: RequestInit = {
-      method,
-      headers: requestHeadersObj,
-    };
-
-    if (["POST", "PUT", "PATCH"].includes(method)) {
-      const trimmed = body.trim();
-      init.body = trimmed ? body : undefined;
-    }
-
+    setLoading(true); setResponse(null);
     const start = performance.now();
-    setLoading(true);
-
     try {
-      const res = await fetch(urlObj.toString(), init);
+      const hdrs: Record<string, string> = {};
+      headers.filter(h => h.enabled && h.key).forEach(h => hdrs[h.key] = h.value);
+      if (authMode === "bearer" && bearerToken.trim()) hdrs["Authorization"] = `Bearer ${bearerToken.trim()}`;
+      if (["POST", "PUT", "PATCH"].includes(method) && !hdrs["Content-Type"]) hdrs["Content-Type"] = "application/json";
+
+      const res = await fetch(requestUrlWithProtocol, { method, headers: hdrs, body: ["POST", "PUT", "PATCH"].includes(method) ? body : undefined });
       const durationMs = performance.now() - start;
-
-      const resHeaders: Record<string, string> = {};
-      res.headers.forEach((value, key) => {
-        resHeaders[key] = value;
-      });
-
-      let text: string;
-      try {
-        text = await res.text();
-      } catch {
-        text = "";
-      }
-
-      let prettyBody = text;
-      if (text) {
-        try {
-          const json = JSON.parse(text);
-          prettyBody = JSON.stringify(json, null, 2);
-        } catch {
-          // keep raw text
-        }
-      }
-
-      const payload: SavedResponse = {
-        status: res.status,
-        statusText: res.statusText,
-        durationMs,
-        headers: resHeaders,
-        bodyPreview: prettyBody,
-      };
+      const resH: Record<string, string> = {}; res.headers.forEach((v, k) => resH[k] = v);
+      const txt = await res.text();
+      let pretty = txt; try { pretty = JSON.stringify(JSON.parse(txt), null, 2); } catch { }
+      const payload = { status: res.status, statusText: res.statusText, durationMs, headers: resH, bodyPreview: pretty };
       setResponse(payload);
-      try {
-        localStorage.setItem(STORAGE_KEY_RESPONSE, JSON.stringify(payload));
-      } catch {
-        // ignore
+      localStorage.setItem(STORAGE_KEY_RESPONSE, JSON.stringify(payload));
+      if (user) {
+        await supabase.from("api_history").insert({ user_id: user.id, method, url, headers: hdrs, body: body.trim() ? JSON.parse(body) : null, status_code: res.status, response_preview: pretty.slice(0, 1000) });
+        const { data: upHistory } = await supabase.from("api_history").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+        if (upHistory) setApiHistory(upHistory as any);
       }
-    } catch (err: any) {
-      const durationMs = performance.now() - start;
-      const message =
-        err?.message ||
-        "Network error. Check the URL, CORS restrictions, or your connection.";
-      const payload: SavedResponse = {
-        errorMessage: message,
-        durationMs,
-      };
-      setResponse(payload);
-      try {
-        localStorage.setItem(STORAGE_KEY_RESPONSE, JSON.stringify(payload));
-      } catch {
-        // ignore
-      }
-    } finally {
-      setLoading(false);
-    }
+    } catch (err: any) { setResponse({ errorMessage: err.message, durationMs: performance.now() - start }); }
+    finally { setLoading(false); }
   };
 
-  const canSend = !!url.trim() && (!["POST", "PUT", "PATCH"].includes(method) || !validateJsonBody());
-
-  const generatedCode = useMemo(() => {
-    const u = requestUrlWithProtocol;
-    const hdrs = requestHeadersObj;
-    const hasBody = ["POST", "PUT", "PATCH"].includes(method) && body.trim().length > 0;
-
-    const jsonBodyPretty = (() => {
-      const trimmed = body.trim();
-      if (!trimmed) return "";
-      try {
-        const j = JSON.parse(trimmed);
-        return JSON.stringify(j, null, 2);
-      } catch {
-        return body;
-      }
-    })();
-
-    if (!u) return "";
-
-    if (codeLang === "curl") {
-      // Deduplicate headers case-insensitively for clean output
-      const deduped: Record<string, { key: string; value: string }> = {};
-      Object.entries(hdrs).forEach(([k, v]) => {
-        const lk = k.toLowerCase();
-        deduped[lk] = { key: k, value: v };
-      });
-
-      // Stable, human-friendly ordering (similar to Postman)
-      const preferredOrder = ["accept", "authorization", "content-type"];
-      const orderedKeys = [
-        ...preferredOrder.filter((k) => !!deduped[k]),
-        ...Object.keys(deduped)
-          .filter((k) => !preferredOrder.includes(k))
-          .sort(),
-      ];
-
-      const lines: string[] = [];
-      lines.push("curl \\");
-      if (method !== "GET") {
-        lines.push(`  -X ${method} \\`);
-      }
-
-      orderedKeys.forEach((lk) => {
-        const { key, value } = deduped[lk];
-        lines.push(`  -H '${escapeSingleQuotes(`${key}: ${value}`)}' \\`);
-      });
-
-      if (hasBody) {
-        // Use --data-raw for cleaner multi-line JSON payloads
-        lines.push(`  --data-raw '${escapeSingleQuotes(jsonBodyPretty)}' \\`);
-      }
-
-      lines.push(`  '${escapeSingleQuotes(u)}'`);
-      return lines.join("\n");
-    }
-
-    if (codeLang === "node") {
-      const headersLiteral = JSON.stringify(hdrs, null, 2);
-      const bodyLine = hasBody
-        ? `  body: JSON.stringify(${jsonBodyPretty.trim() ? jsonBodyPretty : "{}"}),\n`
-        : "";
-      return `const url = ${JSON.stringify(u)};\n\nconst options = {\n  method: ${JSON.stringify(method)},\n  headers: ${headersLiteral},\n${bodyLine}};\n\ntry {\n  const res = await fetch(url, options);\n  const text = await res.text();\n  try {\n    console.log(JSON.parse(text));\n  } catch {\n    console.log(text);\n  }\n} catch (err) {\n  console.error(err);\n}\n`;
-    }
-
-    if (codeLang === "python") {
-      const headersLiteral = JSON.stringify(hdrs, null, 2);
-      const trimmed = body.trim();
-      let bodyBlock = "";
-      if (hasBody) {
-        try {
-          JSON.parse(trimmed);
-          bodyBlock = `payload = ${jsonBodyPretty}\n\n`;
-        } catch {
-          bodyBlock = `payload = ${JSON.stringify(trimmed)}\n\n`;
-        }
-      }
-      const dataArg = hasBody
-        ? (() => {
-            try {
-              JSON.parse(trimmed);
-              return "json=payload";
-            } catch {
-              return "data=payload";
-            }
-          })()
-        : "";
-      const args = [`method=${JSON.stringify(method)}`, `url=${JSON.stringify(u)}`, `headers=headers`]
-        .concat(dataArg ? [dataArg] : [])
-        .join(", ");
-      return `import requests\n\nheaders = ${headersLiteral}\n\n${bodyBlock}response = requests.request(${args})\nprint(response.status_code)\nprint(response.text)\n`;
-    }
-
-    // php
-    const hdrList = Object.entries(hdrs).map(([k, v]) => `${k}: ${v}`);
-    const hdrPhp = hdrList.length
-      ? `[\n${hdrList.map((h) => `  ${JSON.stringify(h)},`).join("\n")}\n]`
-      : "[]";
-    const bodyPhp = hasBody ? JSON.stringify(jsonBodyPretty) : "null";
-    const bodyOpt = hasBody
-      ? `curl_setopt($ch, CURLOPT_POSTFIELDS, ${bodyPhp});\n`
-      : "";
-    return `<?php\n$ch = curl_init();\n\ncurl_setopt($ch, CURLOPT_URL, ${JSON.stringify(u)});\ncurl_setopt($ch, CURLOPT_CUSTOMREQUEST, ${JSON.stringify(method)});\ncurl_setopt($ch, CURLOPT_HTTPHEADER, ${hdrPhp});\n${bodyOpt}curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);\n\n$response = curl_exec($ch);\n$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);\n$error = curl_error($ch);\n\ncurl_close($ch);\n\necho \"Status: $httpCode\\n\";\nif ($error) {\n  echo \"Error: $error\\n\";\n}\necho $response;\n`;
-  }, [codeLang, requestUrlWithProtocol, requestHeadersObj, method, body]);
-
-  const copyCode = async () => {
-    if (!generatedCode) return;
-    try {
-      await navigator.clipboard.writeText(generatedCode);
-    } catch {
-      // ignore (clipboard might be blocked); user can still select manually
-    }
+  const useImportedRequest = (req: any) => {
+    setMethod(req.method as HttpMethod);
+    const { baseUrl, params: p } = parseUrlParts(req.url);
+    setUrl(baseUrl); setParams(p);
+    const hdrs = req.headers ? Object.entries(req.headers).filter(([k]) => k.toLowerCase() !== "authorization").map(([k, v]) => makeRow(k, String(v))) : [emptyRow()];
+    setHeaders(hdrs.length ? hdrs : [emptyRow()]);
+    const auth = req.headers ? Object.entries(req.headers).find(([k]) => k.toLowerCase() === "authorization") : null;
+    if (auth && String(auth[1]).startsWith("Bearer ")) {
+       setAuthMode("bearer"); setBearerToken(String(auth[1]).substring(7));
+    } else { setAuthMode("none"); setBearerToken(""); }
+    setBody(typeof req.body === "object" ? JSON.stringify(req.body, null, 2) : String(req.body || "{\n  \n}"));
+    setMainTab("tester");
   };
 
-  const clearAll = () => {
-    if (loading) return;
-    setMethod("GET");
-    setUrl("");
-    setParams([emptyRow()]);
-    setHeaders([emptyRow()]);
-    setAuthMode("none");
-    setBearerToken("");
-    setBody("{\n  \n}");
-    setJsonError(null);
-    setCurlImportError(null);
-    setResponse(null);
-    setRightTab("response");
-    setCodeLang("curl");
-    try {
-      localStorage.removeItem(STORAGE_KEY_REQUEST);
-      localStorage.removeItem(STORAGE_KEY_RESPONSE);
-    } catch {
-      // ignore
-    }
+  const filteredCaptures = useMemo(() => {
+    return capturedRequests.filter(r => {
+      const isAnalytics = ["google-analytics", "doubleclick", "googletagmanager", "facebook", "hotjar"].some(n => r.url.includes(n));
+      if (!showAnalytics && isAnalytics) return false;
+      if (captureFilter === "json") return JSON.stringify(r.headers).toLowerCase().includes("application/json");
+      return true;
+    });
+  }, [capturedRequests, showAnalytics, captureFilter]);
+
+  const deleteCaptured = async () => {
+    if (selectedCaptureIds.length === 0) return;
+    await supabase.from("captured_requests").delete().in("id", selectedCaptureIds);
+    setCapturedRequests(prev => prev.filter(r => !selectedCaptureIds.includes(r.id)));
+    setSelectedCaptureIds([]);
   };
 
-  if (mainTab === "explore") {
-    return (
-      <div className="space-y-4">
-        <div className="inline-flex rounded-xl bg-panel/70 border border-stroke text-sm overflow-hidden">
-          <button
-            type="button"
-            className="px-5 py-2.5 text-fg-muted hover:text-fg"
-            onClick={() => setMainTab("tester")}
-          >
-            API Tester
-          </button>
-          <button
-            type="button"
-            className="px-5 py-2.5 bg-surface text-fg border-l border-stroke"
-            onClick={() => setMainTab("explore")}
-          >
-            Explore API
-          </button>
-        </div>
-        <ApiExplorerPanel />
-      </div>
-    );
-  }
+  const clearCaptured = async () => {
+    if (user) await supabase.from("captured_requests").delete().eq("user_id", user.id);
+    setCapturedRequests([]);
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="inline-flex rounded-xl bg-panel/70 border border-stroke text-sm overflow-hidden">
-        <button
-          type="button"
-          className="px-5 py-2.5 bg-surface text-fg"
-          onClick={() => setMainTab("tester")}
-        >
-          API Tester
-        </button>
-        <button
-          type="button"
-          className="px-5 py-2.5 text-fg-muted hover:text-fg border-l border-stroke"
-          onClick={() => setMainTab("explore")}
-        >
-          Explore API
-        </button>
-      </div>
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-6 h-[calc(100vh-theme(spacing.16))]">
-      {/* Request builder */}
-      <div className="glass-panel flex flex-col overflow-hidden">
-        <ModuleHeader
-          title="API Tester"
-          description="DEBUG AND TEST HTTP ENDPOINTS"
-          icon="⚡"
-        />
-
-        <div className="px-5 pt-5 space-y-4">
-          <div className="flex flex-col md:flex-row gap-3">
-            <select
-              className="w-full md:w-32 rounded-md border border-stroke bg-panel/80 px-3 py-2 text-sm text-fg focus:outline-none focus:ring-1 focus:ring-primary"
-              value={method}
-              onChange={(e) => setMethod(e.target.value as HttpMethod)}
-            >
-              <option value="GET">GET</option>
-              <option value="POST">POST</option>
-              <option value="PUT">PUT</option>
-              <option value="PATCH">PATCH</option>
-              <option value="DELETE">DELETE</option>
-            </select>
-            <input
-              className="flex-1 rounded-md border border-stroke bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:ring-1 focus:ring-primary font-mono"
-              placeholder="https://api.example.com/resource"
-              value={url}
-              onChange={(e) => handleUrlChange(e.target.value)}
-            />
-            <button
-              className={`btn-primary min-w-[7rem] px-6 py-2 text-sm font-semibold flex items-center justify-center gap-2 ${
-                (!canSend || loading) ? "opacity-60 cursor-not-allowed" : ""
-              }`}
-              onClick={sendRequest}
-              disabled={!canSend || loading}
-            >
-              <span className="whitespace-nowrap">{loading ? "Sending..." : "Send"}</span>
+    <div className="flex flex-col h-[calc(100vh-theme(spacing.16))] space-y-4">
+      {/* Primary Module Navigation */}
+      <div className="flex items-center justify-between">
+        <div className="flex bg-panel/70 border border-stroke rounded-xl overflow-hidden p-1 gap-1 shadow-lg">
+          {(["tester", "explore", "capture"] as const).map(tab => (
+            <button key={tab} onClick={() => setMainTab(tab)} className={`px-6 py-2.5 text-xs font-black rounded-lg transition-all uppercase tracking-widest ${mainTab === tab ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-fg-muted hover:text-fg hover:bg-white/5"}`}>
+              {tab}
             </button>
-            <button
-              type="button"
-              className={`btn-ghost px-5 py-2 text-sm font-semibold ${
-                loading ? "opacity-60 cursor-not-allowed" : ""
-              }`}
-              onClick={clearAll}
-              disabled={loading}
-              title="Clear request and response"
-            >
-              Clear
-            </button>
-          </div>
-          {finalUrl && finalUrl !== url && (
-            <p className="text-[11px] text-fg-muted font-mono truncate">
-              Final URL: {finalUrl}
-            </p>
-          )}
-          {curlImportError ? (
-            <p className="text-[11px] text-rose-400">
-              cURL import error: {curlImportError}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="px-5 pt-3 pb-5 flex-1 flex flex-col overflow-hidden">
-          {/* Simple tab implementation without external libs */}
-          <Tabs
-            params={params}
-            setParams={setParams}
-            headers={headers}
-            setHeaders={setHeaders}
-            authMode={authMode}
-            setAuthMode={setAuthMode}
-            bearerToken={bearerToken}
-            setBearerToken={setBearerToken}
-            method={method}
-            body={body}
-            setBody={setBody}
-            jsonError={jsonError}
-            handleRowChange={handleRowChange}
-            handleAddRow={handleAddRow}
-            handleDeleteRow={handleDeleteRow}
-          />
-        </div>
-      </div>
-
-      {/* Response viewer */}
-      <div className="glass-panel flex flex-col overflow-hidden">
-        <div className="px-5 pt-5 pb-3 border-b border-stroke flex items-center justify-between gap-3">
-          <div className="inline-flex rounded-lg bg-panel/70 border border-stroke text-xs overflow-hidden">
-            <button
-              type="button"
-              className={`px-4 py-2 border-r border-stroke ${
-                rightTab === "response"
-                  ? "bg-surface text-fg"
-                  : "text-fg-muted hover:text-fg"
-              }`}
-              onClick={() => setRightTab("response")}
-            >
-              Response
-            </button>
-            <button
-              type="button"
-              className={`px-4 py-2 ${
-                rightTab === "code"
-                  ? "bg-surface text-fg"
-                  : "text-fg-muted hover:text-fg"
-              }`}
-              onClick={() => setRightTab("code")}
-            >
-              Code
-            </button>
-          </div>
-          {rightTab === "code" ? (
-            <button
-              type="button"
-              onClick={copyCode}
-              className={`text-xs text-primary hover:text-sky-300 ${
-                !generatedCode ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-              disabled={!generatedCode}
-              title="Copy generated code"
-            >
-              Copy Code
-            </button>
-          ) : null}
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {rightTab === "response" ? (
-            !response ? (
-              <p className="text-sm text-fg-muted">
-                Send a request to see the response here.
-              </p>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-center gap-3 text-sm">
-                  {typeof response.status === "number" ? (
-                    <span className="inline-flex items-center gap-2 rounded-full border border-stroke bg-panel/80 px-3 py-1 text-xs font-medium">
-                      <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                      Status:{" "}
-                      <span className="font-mono">
-                        {response.status} {response.statusText ?? ""}
-                      </span>
-                    </span>
-                  ) : null}
-                  {typeof response.durationMs === "number" ? (
-                    <span className="text-xs text-fg-muted">
-                      Time:{" "}
-                      <span className="font-mono">
-                        {Math.round(response.durationMs)} ms
-                      </span>
-                    </span>
-                  ) : null}
-                </div>
-
-                {response.errorMessage ? (
-                  <div className="rounded-md border border-rose-700 bg-rose-900/40 px-3 py-2 text-xs text-rose-100">
-                    {response.errorMessage}
-                  </div>
-                ) : null}
-
-                {response.headers ? (
-                  <div>
-                    <p className="text-xs font-semibold text-fg-secondary mb-1">
-                      Headers
-                    </p>
-                    <div className="rounded-md border border-stroke bg-panel/60 max-h-40 overflow-auto text-[11px] font-mono text-fg-secondary px-3 py-2 space-y-0.5">
-                      {Object.entries(response.headers).map(([k, v]) => (
-                        <div key={k} className="flex gap-2">
-                          <span className="text-fg-muted min-w-[140px]">{k}:</span>
-                          <span className="flex-1 break-all">{v}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                <div>
-                  <p className="text-xs font-semibold text-fg-secondary mb-1">
-                    Body
-                  </p>
-                  <pre className="rounded-md border border-stroke bg-panel/70 max-h-[320px] overflow-auto text-xs font-mono text-fg px-3 py-2 whitespace-pre-wrap break-words">
-                    {response.bodyPreview || "<empty>"}
-                  </pre>
-                </div>
-              </>
-            )
-          ) : (
-            <div className="space-y-3">
-              <div className="inline-flex rounded-lg bg-panel/70 border border-stroke text-xs overflow-hidden">
-                <button
-                  type="button"
-                  className={`px-4 py-2 border-r border-stroke ${
-                    codeLang === "curl"
-                      ? "bg-surface text-fg"
-                      : "text-fg-muted hover:text-fg"
-                  }`}
-                  onClick={() => setCodeLang("curl")}
-                >
-                  cURL
-                </button>
-                <button
-                  type="button"
-                  className={`px-4 py-2 border-r border-stroke ${
-                    codeLang === "node"
-                      ? "bg-surface text-fg"
-                      : "text-fg-muted hover:text-fg"
-                  }`}
-                  onClick={() => setCodeLang("node")}
-                >
-                  Node (fetch)
-                </button>
-                <button
-                  type="button"
-                  className={`px-4 py-2 border-r border-stroke ${
-                    codeLang === "python"
-                      ? "bg-surface text-fg"
-                      : "text-fg-muted hover:text-fg"
-                  }`}
-                  onClick={() => setCodeLang("python")}
-                >
-                  Python (requests)
-                </button>
-                <button
-                  type="button"
-                  className={`px-4 py-2 ${
-                    codeLang === "php"
-                      ? "bg-surface text-fg"
-                      : "text-fg-muted hover:text-fg"
-                  }`}
-                  onClick={() => setCodeLang("php")}
-                >
-                  PHP (cURL)
-                </button>
-              </div>
-
-              {!url.trim() ? (
-                <p className="text-sm text-fg-muted">
-                  Enter a URL to generate code.
-                </p>
-              ) : (
-                <pre className="rounded-md border border-stroke bg-panel/70 max-h-[520px] overflow-auto text-xs font-mono text-fg px-3 py-2 whitespace-pre-wrap break-words">
-                  {generatedCode || "// Unable to generate code for this input"}
-                </pre>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-    </div>
-  );
-};
-
-type TabsProps = {
-  params: KeyValueRow[];
-  setParams: (rows: KeyValueRow[]) => void;
-  headers: KeyValueRow[];
-  setHeaders: (rows: KeyValueRow[]) => void;
-  authMode: AuthMode;
-  setAuthMode: (mode: AuthMode) => void;
-  bearerToken: string;
-  setBearerToken: (val: string) => void;
-  method: HttpMethod;
-  body: string;
-  setBody: (val: string) => void;
-  jsonError: string | null;
-  handleRowChange: (
-    rows: KeyValueRow[],
-    setRows: (rows: KeyValueRow[]) => void,
-    id: string,
-    patch: Partial<KeyValueRow>
-  ) => void;
-  handleAddRow: (
-    rows: KeyValueRow[],
-    setRows: (rows: KeyValueRow[]) => void
-  ) => void;
-  handleDeleteRow: (
-    rows: KeyValueRow[],
-    setRows: (rows: KeyValueRow[]) => void,
-    id: string
-  ) => void;
-};
-
-const Tabs = ({
-  params,
-  setParams,
-  headers,
-  setHeaders,
-  authMode,
-  setAuthMode,
-  bearerToken,
-  setBearerToken,
-  method,
-  body,
-  setBody,
-  jsonError,
-  handleRowChange,
-  handleAddRow,
-  handleDeleteRow,
-}: TabsProps) => {
-  const [activeTab, setActiveTab] = useState<"params" | "headers" | "auth" | "body">(
-    "params"
-  );
-
-  return (
-    <>
-      <div className="inline-flex rounded-lg bg-panel/70 border border-stroke text-xs mb-3 overflow-hidden">
-        <button
-          className={`px-4 py-2 border-r border-stroke ${
-            activeTab === "params"
-              ? "bg-surface text-fg"
-              : "text-fg-muted hover:text-fg"
-          }`}
-          onClick={() => setActiveTab("params")}
-        >
-          Params
-        </button>
-        <button
-          className={`px-4 py-2 border-r border-stroke ${
-            activeTab === "headers"
-              ? "bg-surface text-fg"
-              : "text-fg-muted hover:text-fg"
-          }`}
-          onClick={() => setActiveTab("headers")}
-        >
-          Headers
-        </button>
-        <button
-          className={`px-4 py-2 border-r border-stroke ${
-            activeTab === "auth"
-              ? "bg-surface text-fg"
-              : "text-fg-muted hover:text-fg"
-          }`}
-          onClick={() => setActiveTab("auth")}
-        >
-          Authorization
-        </button>
-        <button
-          className={`px-4 py-2 ${
-            activeTab === "body"
-              ? "bg-surface text-fg"
-              : "text-fg-muted hover:text-fg"
-          }`}
-          onClick={() => setActiveTab("body")}
-        >
-          Body
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-hidden">
-        {activeTab === "params" && (
-          <KeyValueEditor
-            label="Query Params"
-            rows={params}
-            setRows={setParams}
-            handleRowChange={handleRowChange}
-            handleAddRow={handleAddRow}
-            handleDeleteRow={handleDeleteRow}
-          />
-        )}
-        {activeTab === "headers" && (
-          <KeyValueEditor
-            label="Headers"
-            rows={headers}
-            setRows={setHeaders}
-            handleRowChange={handleRowChange}
-            handleAddRow={handleAddRow}
-            handleDeleteRow={handleDeleteRow}
-          />
-        )}
-        {activeTab === "auth" && (
-          <div className="space-y-4">
-            <div className="flex flex-col gap-2 text-sm">
-              <label className="font-medium text-fg-secondary">Auth Type</label>
-              <div className="inline-flex rounded-md bg-panel/70 border border-stroke overflow-hidden text-xs">
-                <button
-                  className={`px-4 py-2 border-r border-stroke ${
-                    authMode === "none"
-                      ? "bg-surface text-fg"
-                      : "text-fg-muted hover:text-fg"
-                  }`}
-                  onClick={() => setAuthMode("none")}
-                  type="button"
-                >
-                  No Auth
-                </button>
-                <button
-                  className={`px-4 py-2 ${
-                    authMode === "bearer"
-                      ? "bg-surface text-fg"
-                      : "text-fg-muted hover:text-fg"
-                  }`}
-                  onClick={() => setAuthMode("bearer")}
-                  type="button"
-                >
-                  Bearer Token
-                </button>
-              </div>
-            </div>
-            {authMode === "bearer" && (
-              <div className="space-y-1 text-sm">
-                <label className="text-fg-secondary">Token</label>
-                <input
-                  className="w-full rounded-md border border-stroke bg-surface px-3 py-2 text-sm text-fg focus:outline-none focus:ring-1 focus:ring-primary font-mono"
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  value={bearerToken}
-                  onChange={(e) => setBearerToken(e.target.value)}
-                />
-                <p className="text-[11px] text-fg-muted">
-                  Will be sent as <span className="font-mono">Authorization: Bearer &lt;token&gt;</span>.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-        {activeTab === "body" && (
-          <div className="flex flex-col h-full gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-fg-secondary">JSON Body</span>
-              {!["POST", "PUT", "PATCH"].includes(method) && (
-                <span className="text-[11px] text-amber-400">
-                  Only used for POST, PUT, PATCH
-                </span>
-              )}
-            </div>
-            <textarea
-              className="flex-1 min-h-[160px] rounded-md border border-stroke bg-panel/70 px-3 py-2 text-xs font-mono text-fg focus:outline-none focus:ring-1 focus:ring-primary resize-none"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              spellCheck={false}
-            />
-            {jsonError ? (
-              <p className="text-[11px] text-rose-400">JSON error: {jsonError}</p>
-            ) : (
-              <p className="text-[11px] text-fg-muted">
-                Paste raw JSON here. It will be validated before sending.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-    </>
-  );
-};
-
-type KeyValueEditorProps = {
-  label: string;
-  rows: KeyValueRow[];
-  setRows: (rows: KeyValueRow[]) => void;
-  handleRowChange: (
-    rows: KeyValueRow[],
-    setRows: (rows: KeyValueRow[]) => void,
-    id: string,
-    patch: Partial<KeyValueRow>
-  ) => void;
-  handleAddRow: (
-    rows: KeyValueRow[],
-    setRows: (rows: KeyValueRow[]) => void
-  ) => void;
-  handleDeleteRow: (
-    rows: KeyValueRow[],
-    setRows: (rows: KeyValueRow[]) => void,
-    id: string
-  ) => void;
-};
-
-const KeyValueEditor = ({
-  label,
-  rows,
-  setRows,
-  handleRowChange,
-  handleAddRow,
-  handleDeleteRow,
-}: KeyValueEditorProps) => {
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-fg-secondary">{label}</span>
-        <button
-          type="button"
-          className="text-xs text-primary hover:text-sky-300"
-          onClick={() => handleAddRow(rows, setRows)}
-        >
-          + Add row
-        </button>
-      </div>
-      <div className="rounded-md border border-stroke bg-panel/40 overflow-hidden">
-        <div className="grid grid-cols-[32px,1.5fr,1.5fr,40px] text-[11px] uppercase tracking-[0.16em] text-fg-muted border-b border-stroke px-3 py-2">
-          <span>On</span>
-          <span>Key</span>
-          <span>Value</span>
-          <span />
-        </div>
-        <div className="max-h-64 overflow-y-auto">
-          {rows.map((row) => (
-            <div
-              key={row.id}
-              className="grid grid-cols-[32px,1.5fr,1.5fr,40px] items-center gap-2 px-3 py-1.5 border-b border-stroke/60 last:border-b-0 text-xs"
-            >
-              <input
-                type="checkbox"
-                checked={row.enabled}
-                onChange={(e) =>
-                  handleRowChange(rows, setRows, row.id, { enabled: e.target.checked })
-                }
-                className="h-3.5 w-3.5 accent-primary justify-self-center"
-              />
-              <input
-                className="w-full bg-transparent border border-stroke rounded px-2 py-1 text-xs text-fg focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-fg-muted"
-                placeholder="key"
-                value={row.key}
-                onChange={(e) =>
-                  handleRowChange(rows, setRows, row.id, { key: e.target.value })
-                }
-              />
-              <input
-                className="w-full bg-transparent border border-stroke rounded px-2 py-1 text-xs text-fg focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-fg-muted"
-                placeholder="value"
-                value={row.value}
-                onChange={(e) =>
-                  handleRowChange(rows, setRows, row.id, { value: e.target.value })
-                }
-              />
-              <button
-                type="button"
-                className="text-fg-muted hover:text-rose-400 text-base leading-none justify-self-center"
-                onClick={() => handleDeleteRow(rows, setRows, row.id)}
-                title="Delete row"
-              >
-                ×
-              </button>
-            </div>
           ))}
         </div>
+        <div className="flex items-center gap-4 text-[10px] font-black tracking-widest text-fg-muted">
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" /> NETWORK ACTIVE</span>
+            <span className="opacity-20">|</span>
+            <span className="uppercase">{new Date().toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short' })}</span>
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0">
+        {mainTab === "explore" ? (
+          <div className="h-full glass-panel overflow-y-auto custom-scrollbar p-1 border-stroke/50">
+            <ApiExplorerPanel />
+          </div>
+        ) : mainTab === "capture" ? (
+          <div className="h-full flex flex-col space-y-4">
+            <div className="glass-panel flex-1 flex flex-col overflow-hidden p-6 border-stroke/50 bg-panel/20">
+               <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                     <label className="flex items-center gap-2 text-xs font-black text-fg-muted cursor-pointer hover:text-fg transition-colors">
+                        <input type="checkbox" checked={showAnalytics} onChange={e => setShowAnalytics(e.target.checked)} className="rounded border-stroke bg-panel" />
+                        ANALYTICS TRAFFIC
+                     </label>
+                     <select value={captureFilter} onChange={e => setCaptureFilter(e.target.value as any)} className="bg-panel border border-stroke rounded-xl px-4 py-2 text-[10px] font-black uppercase text-primary outline-none focus:ring-1 focus:ring-primary">
+                        <option value="all">ALL TRAFFIC</option>
+                        <option value="json">JSON SAMPLES</option>
+                     </select>
+                  </div>
+                  <div className="flex gap-3">
+                     {selectedCaptureIds.length > 0 && (
+                        <button onClick={deleteCaptured} className="px-4 py-2 bg-rose-500/10 text-rose-400 text-[10px] font-black rounded-xl border border-rose-500/20 hover:bg-rose-500/20 transition-all uppercase tracking-widest">
+                          Delete ({selectedCaptureIds.length})
+                        </button>
+                     )}
+                     <button onClick={clearCaptured} className="px-4 py-2 bg-panel border border-stroke text-[10px] font-black text-fg-muted rounded-xl hover:bg-white/5 transition-all uppercase tracking-widest">
+                       Purge Activity
+                     </button>
+                  </div>
+               </div>
+               <div className="flex-1 overflow-auto border border-stroke/30 rounded-2xl bg-black/20 shadow-inner">
+                  <table className="w-full text-left text-[11px] font-mono border-separate border-spacing-0">
+                    <thead className="sticky top-0 bg-[#0f172a] border-b border-stroke text-[9px] font-black uppercase text-fg-muted tracking-[0.2em] z-10 shadow-md">
+                        <tr>
+                            <th className="px-6 py-4 w-12 text-center"><input type="checkbox" checked={selectedCaptureIds.length > 0 && selectedCaptureIds.length === filteredCaptures.length} onChange={() => setSelectedCaptureIds(selectedCaptureIds.length === filteredCaptures.length ? [] : filteredCaptures.map(r => r.id))} className="rounded bg-panel border-stroke" /></th>
+                            <th className="px-6 py-4 w-24">Method</th>
+                            <th className="px-6 py-4">Endpoint</th>
+                            <th className="px-6 py-4 w-32">Hostname</th>
+                            <th className="px-6 py-4 w-20">Status</th>
+                            <th className="px-6 py-4 text-right pr-8">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stroke/10">
+                        {filteredCaptures.length === 0 ? (
+                           <tr><td colSpan={6} className="px-6 py-32 text-center italic text-fg-muted uppercase tracking-[0.2em] opacity-30 text-xs">Waiting for incoming traffic hooks...</td></tr>
+                        ) : filteredCaptures.map(req => (
+                           <tr key={req.id} className={`hover:bg-primary/5 transition-colors group ${selectedCaptureIds.includes(req.id) ? 'bg-primary/10' : ''}`}>
+                               <td className="px-6 py-4 text-center"><input type="checkbox" checked={selectedCaptureIds.includes(req.id)} onChange={() => setSelectedCaptureIds(prev => prev.includes(req.id) ? prev.filter(i => i !== req.id) : [...prev, req.id])} className="rounded bg-panel border-stroke" /></td>
+                               <td className="px-6 py-4"><span className={`px-2 py-0.5 rounded text-[10px] font-black border tracking-tighter ${req.method === 'GET' ? 'text-emerald-400 bg-emerald-400/5 border-emerald-400/20' : 'text-primary bg-primary/5 border-primary/20'}`}>{req.method}</span></td>
+                               <td className="px-6 py-4 truncate max-w-sm text-fg-secondary" title={req.url}>{req.url}</td>
+                               <td className="px-6 py-4 text-fg-muted truncate max-w-[140px]">{req.domain || '---'}</td>
+                               <td className="px-6 py-4"><span className={`font-black ${req.status >= 400 ? 'text-rose-400' : 'text-emerald-400'}`}>{req.status || '---'}</span></td>
+                               <td className="px-6 py-4 text-right pr-8"><button onClick={() => useImportedRequest(req)} className="px-3 py-1 bg-primary text-white rounded-lg text-[9px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all hover:scale-105">Import</button></td>
+                           </tr>
+                        ))}
+                    </tbody>
+                  </table>
+               </div>
+            </div>
+          </div>
+        ) : (
+          <div className="h-full flex flex-col space-y-4">
+            {/* Split View: Request Details | Response Terminal */}
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-4">
+               {/* Left: Request Configuration */}
+               <div className="glass-panel flex flex-col overflow-hidden border-stroke/50 bg-panel/10 shadow-2xl">
+                  <div className="p-5 border-b border-stroke bg-panel/30">
+                     <div className="flex gap-3">
+                        <select value={method} onChange={e => setMethod(e.target.value as any)} className="bg-panel border border-stroke rounded-2xl px-5 py-3 text-sm font-black w-36 focus:ring-2 focus:ring-primary/40 outline-none transition-all shadow-lg">
+                           <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
+                        </select>
+                        <input value={url} onChange={e => setUrl(e.target.value)} placeholder="API ENDPOINT URL..." className="flex-1 bg-surface border border-stroke rounded-2xl px-6 py-3 text-xs font-mono focus:ring-2 focus:ring-primary/40 outline-none shadow-inner tracking-tight placeholder:italic" />
+                        <button onClick={sendRequest} disabled={loading} className="btn-primary px-12 font-black tracking-[0.2em] text-xs h-[46px] shadow-xl shadow-primary/20 animate-none transform active:scale-95 transition-all">
+                           {loading ? "PENDING" : "DEPLOY"}
+                        </button>
+                     </div>
+                  </div>
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                     <div className="px-6 h-12 border-b border-stroke bg-panel/10 flex gap-8">
+                        {(["params", "auth", "headers", "body"] as const).map(tab => (
+                           <button key={tab} onClick={() => setTesterTab(tab)} className={`h-full text-[10px] font-black uppercase tracking-[0.2em] border-b-2 transition-all ${testerTab === tab ? "border-primary text-fg" : "border-transparent text-fg-muted hover:text-fg"}`}>{tab}</button>
+                        ))}
+                     </div>
+                     <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-black/5">
+                        {testerTab === "params" && <KeyValueEditor label="Query Parameters" rows={params} setRows={setParams} />}
+                        {testerTab === "headers" && <KeyValueEditor label="HTTP Headers" rows={headers} setRows={setHeaders} />}
+                        {testerTab === "auth" && (
+                           <div className="space-y-6">
+                              <h3 className="text-[10px] font-black text-fg-muted uppercase tracking-[0.2em]">Security Protocol</h3>
+                              <div className="flex gap-2 p-1.5 bg-panel border border-stroke rounded-2xl w-fit shadow-lg">
+                                 <button onClick={() => setAuthMode("none")} className={`px-6 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${authMode === "none" ? "bg-primary text-white shadow-md" : "text-fg-muted hover:bg-white/5"}`}>Cleartext</button>
+                                 <button onClick={() => setAuthMode("bearer")} className={`px-6 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${authMode === "bearer" ? "bg-primary text-white shadow-md" : "text-fg-muted hover:bg-white/5"}`}>Bearer Token</button>
+                              </div>
+                              {authMode === "bearer" && (
+                                 <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <label className="text-[9px] font-black text-primary uppercase ml-1">Access Token</label>
+                                    <input value={bearerToken} onChange={e => setBearerToken(e.target.value)} placeholder="Enter authorization token..." className="w-full bg-panel border border-stroke rounded-2xl px-5 py-3 text-[11px] font-mono focus:ring-1 focus:ring-primary outline-none shadow-inner" />
+                                 </div>
+                              )}
+                           </div>
+                        )}
+                        {testerTab === "body" && (
+                           <div className="space-y-4 h-full flex flex-col">
+                              <h3 className="text-[10px] font-black text-fg-muted uppercase tracking-[0.2em]">Payload Configuration (JSON)</h3>
+                              <textarea value={body} onChange={e => setBody(e.target.value)} className="flex-1 bg-[#020617] text-emerald-400 border border-stroke/50 rounded-2xl p-5 text-xs font-mono focus:ring-2 focus:ring-primary/20 outline-none resize-none custom-scrollbar min-h-[250px] shadow-2xl leading-relaxed" />
+                           </div>
+                        )}
+                     </div>
+                  </div>
+               </div>
+
+               {/* Right: Response Terminal */}
+               <div className="glass-panel flex flex-col overflow-hidden bg-[#020617]/40 border-stroke/50 group shadow-2xl">
+                  <div className="px-6 h-14 border-b border-stroke bg-panel/30 flex items-center justify-between">
+                     <span className="text-[10px] font-black text-fg-muted uppercase tracking-[0.3em]">Console Output</span>
+                     {response && (
+                        <div className="flex items-center gap-6">
+                           <div className="flex flex-col items-end">
+                              <span className={`text-[12px] font-black leading-none ${(response?.status ?? 0) >= 400 ? "text-rose-400" : "text-emerald-400"}`}>{response?.status ?? "---"}</span>
+                              <span className="text-[8px] font-black text-fg-muted uppercase mt-0.5">{response.statusText}</span>
+                           </div>
+                           <div className="w-px h-8 bg-stroke/50" />
+                           <div className="flex flex-col items-end">
+                              <span className="text-[12px] font-black text-fg leading-none">{response.durationMs?.toFixed(0)}</span>
+                              <span className="text-[8px] font-black text-fg-muted uppercase mt-0.5">MILLISEC</span>
+                           </div>
+                        </div>
+                     )}
+                  </div>
+                  <div className="flex-1 overflow-auto p-6 custom-scrollbar bg-black/20">
+                     {response ? (
+                        <div className="font-mono text-[11px] h-full">
+                           {response.errorMessage ? (
+                              <div className="text-rose-400 bg-rose-400/5 p-6 rounded-2xl border border-rose-400/20 shadow-inner leading-relaxed">
+                                <span className="font-black">FATAL_ERROR:</span> {response.errorMessage}
+                              </div>
+                           ) : (
+                              <pre className="text-emerald-400/90 leading-relaxed whitespace-pre-wrap">{response.bodyPreview}</pre>
+                           )}
+                        </div>
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-fg-muted space-y-6 opacity-20 group-hover:opacity-40 transition-opacity duration-700">
+                           <div className="p-8 rounded-full border-2 border-dashed border-fg-muted text-5xl animate-spin-slow">📡</div>
+                           <div className="text-[11px] font-black uppercase tracking-[0.5em] text-center">Awaiting Transmission...</div>
+                        </div>
+                      )}
+                  </div>
+               </div>
+            </div>
+
+            {/* Bottom Panel: Global Request History */}
+            <div className="h-1/4 min-h-[160px] glass-panel flex flex-col overflow-hidden border-stroke/50 bg-surface/30 shadow-2xl">
+               <div className="px-6 h-10 border-b border-stroke bg-panel/40 flex items-center justify-between">
+                  <h3 className="text-[10px] font-black text-fg-muted uppercase tracking-[0.2em] flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full" />
+                    Archive & Session Logs
+                  </h3>
+                  <div className="text-[9px] font-black text-fg-muted uppercase">{apiHistory.length} ENTRIES RECORDED</div>
+               </div>
+               <div className="flex-1 overflow-auto p-3 custom-scrollbar">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+                     {apiHistory.length === 0 ? (
+                        <div className="col-span-full py-10 text-center text-[10px] text-fg-muted italic uppercase tracking-widest opacity-30">No transaction logs available.</div>
+                     ) : apiHistory.map(item => (
+                        <div key={item.id} onClick={() => useImportedRequest(item)} className="p-4 bg-panel/40 border border-stroke/30 rounded-2xl hover:border-primary/50 hover:bg-primary/5 cursor-pointer group transition-all transform active:scale-95 shadow-sm">
+                           <div className="flex items-center justify-between mb-3">
+                              <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg border tracking-tighter ${item.method === 'GET' ? 'text-emerald-400 border-emerald-400/30' : 'text-primary border-primary/30'}`}>{item.method}</span>
+                              <span className="text-[8px] font-black text-fg-muted uppercase">{new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                           </div>
+                           <div className="text-[11px] font-mono text-fg-secondary truncate mb-2 group-hover:text-fg">{item.url}</div>
+                           <div className="flex items-center gap-2">
+                              <span className={`w-1.5 h-1.5 rounded-full ${item.status_code && item.status_code >= 400 ? 'bg-rose-400' : 'bg-emerald-400'}`} />
+                              <span className="text-[9px] font-black text-fg-muted uppercase tracking-tighter">Status: {item.status_code || '---'}</span>
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+               </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

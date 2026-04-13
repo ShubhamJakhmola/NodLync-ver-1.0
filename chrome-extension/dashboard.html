@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>NodLync API Inspector</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dashboard">
+    <div class="top-bar">
+        <div class="logo">
+            <img src="icons/icon48.png" alt="NodLync" width="24" height="24">
+            <span>NodLync</span>
+        </div>
+        
+        <div class="top-nav">
+           <button class="nav-btn active" data-view="activity">Activity Monitor</button>
+           <button class="nav-btn" data-view="collections">Collections</button>
+           <button class="nav-btn" data-view="insights">Insights</button>
+           <button class="nav-btn" data-view="trace">Direct Trace</button>
+        </div>
+
+        <div class="controls">
+            <div class="toggle-group">
+                <span id="captureStatusLabel">CAPTURE OFF</span>
+                <label class="switch">
+                    <input type="checkbox" id="captureToggle">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+            <div class="divider"></div>
+            <div class="toggle-group">
+                <span class="text-danger">RECORD SESSION</span>
+                <label class="switch">
+                    <input type="checkbox" id="recordToggle">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+            <div class="divider"></div>
+            <div class="toggle-group">
+                <span>ANALYTICS</span>
+                <label class="switch">
+                    <input type="checkbox" id="analyticsToggle">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+            <div class="divider"></div>
+            <button id="clearBtn" class="btn-ghost-danger">Clear</button>
+        </div>
+    </div>
+
+    <!-- Filters Bar -->
+    <div class="filters-bar">
+        <input type="text" id="searchBar" class="input-modern" placeholder="Search by URL, endpoint, keyword...">
+        <select id="methodFilter" class="select-modern">
+            <option value="all">Any Method</option>
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+            <option value="DELETE">DELETE</option>
+        </select>
+        <select id="statusFilter" class="select-modern">
+            <option value="all">Any Status</option>
+            <option value="2xx">2xx Success</option>
+            <option value="4xx">4xx Client Error</option>
+            <option value="5xx">5xx Server Error</option>
+        </select>
+        <select id="domainFilter" class="select-modern">
+            <option value="all">All Domains</option>
+        </select>
+        <select id="typeFilter" class="select-modern">
+            <option value="xhr" selected>XHR / Fetch</option>
+            <option value="all">All Types</option>
+            <option value="json">application/json</option>
+        </select>
+        
+        <label class="checkbox-label" style="margin-left:auto; color: white;">
+            <input type="checkbox" id="groupByDomain"> Group by Domain
+        </label>
+    </div>
+    
+    <div class="main-container">
+        <!-- View 1: Activity Monitor -->
+        <div id="activityView" class="view-panel active flex h-full w-full">
+            <!-- Sidebar: Request List -->
+            <div class="sidebar" id="sidebar">
+                <div class="sidebar-header" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                    <div class="flex" style="justify-content: space-between;">
+                        <span>Traffic Queue</span>
+                        <span id="requestCount" class="badge">0</span>
+                    </div>
+                    <div class="bulk-actions" style="display:flex; gap: 4px; justify-content: space-between;">
+                        <label style="font-size: 10px; display:flex; gap:4px; align-items:center;">
+                            <input type="checkbox" id="selectAllCheckbox"> All
+                        </label>
+                        <div class="flex" style="gap:4px;">
+                            <button id="bulkDeleteBtn" class="btn-mini btn-ghost-danger">Delete</button>
+                            <button id="bulkSaveBtn" class="btn-mini btn-primary">Save Col</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="sidebar-content">
+                    <ul id="requestList" class="request-list"></ul>
+                </div>
+            </div>
+            
+            <!-- Main: Detail View -->
+            <div class="detail-view" id="detailView">
+                <div id="noSelection" class="empty-detail">
+                    <div class="empty-icon">🔍</div>
+                    <h3>Developer Console</h3>
+                    <p>Select a request from the sidebar to inspect details, replay, or analyze.</p>
+                </div>
+                
+                <div id="selectionContent" class="selection-content" style="display: none;">
+                    <div class="detail-header">
+                        <div class="detail-top-row">
+                            <span id="detailMethod" class="badge-method">GET</span>
+                            <h2 id="detailUrl" class="url-text">https://api.example.com/data</h2>
+                            <span id="detailStatus" class="badge-status">---</span>
+                        </div>
+                        <div class="detail-meta">
+                            <span id="detailDomain">domain.com</span>
+                            <span class="divider-dot">•</span>
+                            <span id="detailDuration">--- ms</span>
+                            <span class="divider-dot">•</span>
+                            <span id="detailTime">---</span>
+                        </div>
+                        
+                        <div class="detail-actions" style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button id="sendNodLyncBtn" class="btn-primary" style="padding: 8px 16px;">🚀 Use in NodLync API Tester</button>
+                            <button id="authExtractBtn" class="btn-secondary">Smart Auth & Env</button>
+                            <button id="copyCurl" class="btn-secondary">Copy cURL</button>
+                            <button id="exportJson" class="btn-secondary">Export JSON</button>
+                        </div>
+                        
+                        <div id="errorInsights" class="error-insights" style="display:none; margin-top: 16px;">
+                            <h4 style="color:var(--danger)">Network / Request Error detected:</h4>
+                            <p id="errorMsg"></p>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-tabs">
+                        <button class="tab-btn active" data-tab="overview">Overview</button>
+                        <button class="tab-btn" data-tab="headers">Headers</button>
+                        <button class="tab-btn" data-tab="body">Body</button>
+                        <button class="tab-btn" data-tab="auth">Auth</button>
+                        <button class="tab-btn" data-tab="replay">Replay</button>
+                        <button class="tab-btn" data-tab="ai">AI Assistant</button>
+                    </div>
+                    
+                    <div class="tab-content" id="overviewTab">
+                        <div class="data-section">
+                            <h4>Request Info</h4>
+                            <div class="data-grid">
+                                <div class="grid-item"><label>Full URL</label><span id="ovUrl" style="word-break:break-all">---</span></div>
+                                <div class="grid-item"><label>Method</label><span id="ovMethod">---</span></div>
+                                <div class="grid-item"><label>Status</label><span id="ovStatus">---</span></div>
+                                <div class="grid-item"><label>Timing</label><span id="ovDuration">---</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-content h-full" id="headersTab" style="display: none;">
+                        <div class="split-pane">
+                            <div class="pane-half">
+                                <h4>Request Headers</h4>
+                                <div id="reqHeadersList" class="key-value-list"></div>
+                            </div>
+                            <div class="pane-half">
+                                <h4>Response Headers</h4>
+                                <div id="resHeadersList" class="key-value-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-content h-full" id="bodyTab" style="display: none;">
+                        <div class="split-pane vert">
+                            <div class="pane-half" style="flex:1;">
+                                <h4>Request Body</h4>
+                                <pre id="reqBodyView" class="code-view">{}</pre>
+                            </div>
+                            <div class="pane-half" style="flex:1;">
+                                <h4>Response Body</h4>
+                                <pre id="resBodyView" class="code-view">{}</pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-content" id="authTab" style="display: none;">
+                        <div class="auth-box">
+                            <div class="auth-header">
+                                <span class="auth-icon">🔑</span>
+                                <h4>Smart Auth Detection</h4>
+                            </div>
+                            <div id="authContent" class="auth-inner">
+                                <label>Detected Authentication Sequence</label>
+                                <div class="masked-value">
+                                    <span id="authKey" style="color:var(--primary); font-weight:bold; margin-right:10px;">Bearer</span>
+                                    <input id="authValue" type="password" value="sk-...." readonly>
+                                    <button id="revealAuth" class="btn-mini">👁️</button>
+                                </div>
+                                <button id="useAuthBtn" class="btn-primary" style="margin-top:16px;">Use this auth in API Tester</button>
+                            </div>
+                            <p id="noAuthMsg" class="text-muted" style="display: none;">No standard Authorization headers found.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- REPLAY TAB -->
+                    <div class="tab-content" id="replayTab" style="display: none;">
+                        <div class="replay-card">
+                            <h4>Modify & Replay</h4>
+                            <div class="input-row" style="margin-bottom: 12px;">
+                                <select id="replayMethod" class="select-modern" style="width:100px;">
+                                    <option value="GET">GET</option>
+                                    <option value="POST">POST</option>
+                                    <option value="PUT">PUT</option>
+                                    <option value="DELETE">DELETE</option>
+                                    <option value="PATCH">PATCH</option>
+                                </select>
+                                <input type="text" id="replayUrl" class="input-modern" style="flex:1;">
+                                <button id="replaySendBtn" class="btn-primary">Send Request</button>
+                            </div>
+                            
+                            <div class="split-pane vert">
+                                <div class="pane-half">
+                                    <label>Headers (JSON format)</label>
+                                    <textarea id="replayHeaders" class="input-modern" style="width:100%; height:80px; font-family:monospace;"></textarea>
+                                </div>
+                                <div class="pane-half">
+                                    <label>Body Content</label>
+                                    <textarea id="replayBody" class="input-modern" style="width:100%; height:120px; font-family:monospace;"></textarea>
+                                </div>
+                            </div>
+                            
+                            <div id="replayResponse" style="margin-top:20px; display:none;">
+                                <h4>Replay Response <span id="replayStatus" class="badge-status"></span></h4>
+                                <pre id="replayRespBody" class="code-view" style="max-height:200px;"></pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Assistant TAB -->
+                    <div class="tab-content" id="aiTab" style="display: none;">
+                        <div class="ai-box">
+                            <h4 style="margin-bottom: 16px;">✨ AI Intelligence Actions</h4>
+                            <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom: 24px;">
+                                <button class="btn-primary ai-action-btn" data-action="explain">Explain this API</button>
+                                <button class="btn-secondary ai-action-btn" data-action="code">Generate Client Code</button>
+                                <button class="btn-secondary ai-action-btn" data-action="debug">Debug Request</button>
+                                <button class="btn-secondary ai-action-btn" data-action="headers">Suggest Headers</button>
+                            </div>
+                            <div id="aiResponseBox" class="code-view" style="display:none; white-space:pre-wrap; font-family:sans-serif;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+
+        <!-- View 2: Collections -->
+        <div id="collectionsView" class="view-panel" style="display: none; width: 100%; flex-direction:column;">
+            <div class="header" style="background:var(--panel-bg); padding:20px 32px;">
+                <h2>Saved Collections</h2>
+                <p class="text-muted">Groups of API requests saved for future testing and workflows.</p>
+                <button id="exportPostmanBtn" class="btn-primary" style="margin-top:12px;">Export as Postman Collection</button>
+            </div>
+            <div style="padding: 32px; overflow-y:auto;">
+                <div id="collectionsList" style="display:grid; gap:16px;"></div>
+                <div id="emptyCollections" class="empty-detail" style="height:300px;">
+                    <div class="empty-icon">📁</div>
+                    <p>No collections saved yet. Select requests from the Activity Monitor to create one.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- View 3: Insights -->
+        <div id="insightsView" class="view-panel" style="display: none; padding: 40px; width: 100%; flex-direction:column; overflow-y:auto;">
+            <h2>API Traffic Insights</h2>
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top:24px;">
+                <div class="insight-card">
+                    <h4>Total Requests</h4>
+                    <div class="insight-value" id="insTotal">0</div>
+                </div>
+                <div class="insight-card">
+                    <h4>Failed (4xx/5xx)</h4>
+                    <div class="insight-value text-danger" id="insFailed">0</div>
+                </div>
+                <div class="insight-card">
+                    <h4>Avg Response Time</h4>
+                    <div class="insight-value" id="insAvgTime">0 ms</div>
+                </div>
+            </div>
+            <div class="split-pane" style="margin-top:32px; height:auto; gap:24px;">
+                <div class="pane-half" style="background:var(--panel-bg); padding:20px; border-radius:12px;">
+                    <h4>Slowest Endpoints</h4>
+                    <ul id="slowList" class="request-list"></ul>
+                </div>
+                <div class="pane-half" style="background:var(--panel-bg); padding:20px; border-radius:12px;">
+                    <h4>Most Frequent Domains</h4>
+                    <ul id="freqList" class="request-list"></ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- View 4: Direct URL Trace -->
+        <div id="traceView" class="view-panel" style="display: none; padding: 40px; width: 100%;">
+            <div class="trace-card">
+                <div class="trace-header">
+                    <div class="trace-icon">🚀</div>
+                    <div>
+                        <h2>Direct URL Trace & Workflow Generator</h2>
+                        <p class="text-muted">Navigate to a target site to capture traffic specifically for robust API testing.</p>
+                    </div>
+                </div>
+                
+                <div class="url-input-large">
+                    <label>Target Website URL</label>
+                    <div class="input-row">
+                        <input type="text" id="manualUrlInput" placeholder="https://api.example.com" class="input-modern-large">
+                        <button id="traceUrlBtn" class="btn-primary-large">Navigate & Trace</button>
+                    </div>
+                </div>
+                
+                <div id="traceStatus" class="trace-status-large" style="display: none;">
+                    <div class="spinner"></div>
+                    <div>
+                        <h4 id="traceStatusText">Tracing Active</h4>
+                        <p>Recording session calls for workflow generation. Please continue interacting with the target site.</p>
+                    </div>
+                </div>
+
+                <div style="margin-top:32px;">
+                    <button id="generateWorkflowBtn" class="btn-secondary" style="width:100%; padding:16px;">Generate NodLync Workflow from Trace data (AI)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="warningBar" class="warning-bar">
+        ⚠️ Captured requests may include sensitive data (tokens, PII).
+    </div>
+
+    <!-- Collection Save Modal -->
+    <div id="collectionModal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <h3>Save to Collection</h3>
+            <input type="text" id="collNameInput" class="input-modern" placeholder="E.g., Production Auth Flow" style="width:100%; margin:16px 0;">
+            <div style="display:flex; gap:12px; justify-content:flex-end;">
+                <button id="cancelCollBtn" class="btn-secondary">Cancel</button>
+                <button id="saveCollBtn" class="btn-primary">Save Collection</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

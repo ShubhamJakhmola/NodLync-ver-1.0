@@ -5,11 +5,12 @@ import {
   updateProfile,
   updateSettings,
 } from "../api/settingsApi";
-import { clearAppLogs, listAppLogs, normalizeAppLogRow } from "../api/appLogsApi";
-import PaginationControls from "../components/PaginationControls";
-import { usePagination } from "../hooks/usePagination";
+import { logAppEvent } from "../utils/appLogger";
+import SystemLogsPanel from "../components/SystemLogsPanel";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import ModuleHeader from "../components/ModuleHeader";
+import { usePagination } from "../hooks/usePagination";
+import PaginationControls from "../components/PaginationControls";
 
 const SettingsPage = () => {
   const user = useAppStore((s) => s.user);
@@ -17,29 +18,31 @@ const SettingsPage = () => {
   // App store states
   const appSettings = useAppStore((s) => s.appSettings);
   const userProfile = useAppStore((s) => s.userProfile);
-  const appLogs = useAppStore((s) => s.appLogs);
   const setAppSettings = useAppStore((s) => s.setAppSettings);
   const setUserProfile = useAppStore((s) => s.setUserProfile);
-  const setAppLogs = useAppStore((s) => s.setAppLogs);
 
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<"general" | "profile" | "logs" | "ai" | "about">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "profile" | "integrations" | "logs" | "ai" | "about">("general");
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [loadingKeys, setLoadingKeys] = useState(false);
-  const [loadingLogs, setLoadingLogs] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [clearingLogs, setClearingLogs] = useState(false);
+
+  // Log when users access the System Logs tab
+  useEffect(() => {
+    if (activeTab === "logs" && user) {
+      void logAppEvent({
+        type: "info",
+        module: "settings",
+        message: "Viewed system logs",
+      });
+    }
+  }, [activeTab, user]);
   const [savingSettingKey, setSavingSettingKey] = useState<string | null>(null);
 
   // AI Keys state
   const [apiKeys, setApiKeys] = useState<any[]>([]);
-
-  // Logs filters
-  const [logStatusFilter, setLogStatusFilter] = useState<string>("all");
-  const [logModuleFilter, setLogModuleFilter] = useState<string>("all");
-  const [logSortDir, setLogSortDir] = useState<"desc" | "asc">("desc");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,7 +50,7 @@ const SettingsPage = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get("tab");
-    if (tab && ["general", "profile", "logs", "ai", "about"].includes(tab)) {
+    if (tab && ["general", "profile", "integrations", "logs", "ai", "about"].includes(tab)) {
       setActiveTab(tab as any);
     }
   }, [location, navigate]);
@@ -68,43 +71,52 @@ const SettingsPage = () => {
     void fetchApiKeys();
   }, [user]);
 
-  // Realtime Logs Subscription
-  useEffect(() => {
-    if (!user) return;
-    if (appLogs.length === 0) {
-      setLoadingLogs(true);
-      (async () => {
-        try {
-          const { data } = await listAppLogs(user.id, { limit: 100 });
-          if (data) setAppLogs(data);
-        } finally {
-          setLoadingLogs(false);
-        }
-      })();
-    }
-    const channel = supabase.channel("my-logs").on("postgres_changes", { event: "INSERT", schema: "public", table: "app_logs", filter: `user_id=eq.${user.id}` }, (payload: any) => {
-      const normalized = normalizeAppLogRow(payload.new as any);
-      const existing = useAppStore.getState().appLogs;
-      if (!existing.some(l => l.id === normalized.id)) {
-        setAppLogs([normalized, ...existing].slice(0, 200));
-      }
-    }).subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [user, setAppLogs]);
-
   // --- Handlers ---
-  const handleSettingToggle = async (key: string, value: any) => {
-    if (!user || !appSettings) return;
+  const handleSettingChange = async (key: string, value: unknown) => {
+    if (!user) return;
     const previous = appSettings;
-    setAppSettings({ ...appSettings, [key]: value });
+    const updatedSettings = { 
+      ...appSettings, 
+      [key]: value,
+      user_id: user.id, // Ensure user_id is always a string
+      theme: (appSettings?.theme) || "light", // Ensure theme is always a string
+      default_ai_provider: (appSettings?.default_ai_provider) || "openai", // Ensure default_ai_provider is always a string
+      notifications_enabled: (appSettings?.notifications_enabled) ?? false, // Ensure notifications_enabled is always a boolean
+      auto_update_enabled: (appSettings?.auto_update_enabled) ?? false, // Ensure auto_update_enabled is always a boolean
+    };
+    setAppSettings(updatedSettings);
     setSavingSettingKey(key);
     try {
       const { error } = await updateSettings(user.id, { [key]: value });
-      if (error) setAppSettings(previous);
-    } catch {
+      if (error) {
+        setAppSettings(previous);
+        await logAppEvent({
+          type: "error",
+          module: "settings",
+          message: `Failed to update setting ${key}: ${error.message}`,
+        });
+      } else {
+        await logAppEvent({
+          type: "success",
+          module: "settings",
+          message: `Updated setting ${key}`,
+          meta: { key, value },
+        });
+      }
+    } catch (err) {
       setAppSettings(previous);
+      await logAppEvent({
+        type: "error",
+        module: "settings",
+        message: `Failed to update setting ${key}: ${err}`,
+      });
+    } finally {
+      setSavingSettingKey(null);
     }
-    setSavingSettingKey(null);
+  };
+
+  const handleSettingToggle = async (key: string, value: string | boolean) => {
+    await handleSettingChange(key, value);
   };
 
   const handleProfileNameChange = async (e: React.FocusEvent<HTMLInputElement>) => {
@@ -114,7 +126,22 @@ const SettingsPage = () => {
       setLoadingProfile(true);
       try {
         const { data } = await updateProfile(user.id, { display_name: val });
-        if (data) setUserProfile(data);
+        if (data) {
+          setUserProfile(data);
+          await logAppEvent({
+            type: "success",
+            module: "profile",
+            message: "Updated display name",
+            meta: { oldName: userProfile.display_name, newName: val },
+          });
+        }
+      } catch (error) {
+        await logAppEvent({
+          type: "error",
+          module: "profile",
+          message: "Failed to update display name",
+          meta: { error, newName: val },
+        });
       } finally {
         setLoadingProfile(false);
       }
@@ -122,15 +149,33 @@ const SettingsPage = () => {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length || !user || !userProfile) return;
-    const file = e.target.files[0];
+    if (!e.target.files?.[0] || !user) return;
     setLoadingProfile(true);
-    const filePath = `${user.id}/profile.jpg`;
-    await supabase.storage.from("Profile_image").upload(filePath, file, { upsert: true });
-    const { data: publicData } = supabase.storage.from("Profile_image").getPublicUrl(filePath);
-    const { data } = await updateProfile(user.id, { avatar_url: `${publicData.publicUrl}?t=${Date.now()}` });
-    if (data) setUserProfile(data);
-    setLoadingProfile(false);
+    try {
+      const file = e.target.files[0];
+      const filePath = `${user.id}/profile.jpg`;
+      await supabase.storage.from("Profile_image").upload(filePath, file, { upsert: true });
+      const { data: publicData } = supabase.storage.from("Profile_image").getPublicUrl(filePath);
+      const { data } = await updateProfile(user.id, { avatar_url: `${publicData.publicUrl}?t=${Date.now()}` });
+      if (data) {
+        setUserProfile(data);
+        await logAppEvent({
+          type: "success",
+          module: "profile",
+          message: "Updated profile picture",
+          meta: { fileSize: file.size, fileName: file.name },
+        });
+      }
+    } catch (error) {
+      await logAppEvent({
+        type: "error",
+        module: "profile",
+        message: "Failed to update profile picture",
+        meta: { error },
+      });
+    } finally {
+      setLoadingProfile(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -139,37 +184,7 @@ const SettingsPage = () => {
     navigate("/login");
   };
 
-  const handleClearLogs = async () => {
-    if (user && window.confirm("Clear all logs?")) {
-      setClearingLogs(true);
-      await clearAppLogs(user.id);
-      setAppLogs([]);
-      setClearingLogs(false);
-    }
-  };
-
-  const handleExportLogs = () => {
-    const blob = new Blob([JSON.stringify(appLogs, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "nodlync_logs.json";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const normalizedLogs = [...appLogs].sort((a, b) => {
-    const aTime = new Date(a.timestamp).getTime();
-    const bTime = new Date(b.timestamp).getTime();
-    return logSortDir === "desc" ? bTime - aTime : aTime - bTime;
-  });
-  const filteredLogs = normalizedLogs.filter(log => {
-    if (logStatusFilter !== "all" && log.type !== logStatusFilter) return false;
-    if (logModuleFilter !== "all" && log.module !== logModuleFilter) return false;
-    return true;
-  });
-  const uniqueModules = Array.from(new Set(normalizedLogs.map(l => l.module || "")));
-  const logsPagination = usePagination(filteredLogs, { initialPageSize: 20 });
+  // Pagination for API keys
   const apiKeysPagination = usePagination(apiKeys);
 
   return (
@@ -177,7 +192,7 @@ const SettingsPage = () => {
       <ModuleHeader title="Settings Hub" description="MANAGE YOUR PROFILE AND SYSTEM LOGS" icon="⚙️" />
 
       <div className="flex items-center gap-1 mb-6 border-b border-stroke overflow-x-auto custom-scrollbar">
-        {["general", "profile", "logs", "ai", "about"].map(tab => (
+        {["general", "profile", "integrations", "logs", "ai", "about"].map(tab => (
           <button
             key={tab}
             onClick={() => { setActiveTab(tab as any); navigate(`/settings?tab=${tab}`, { replace: true }); }}
@@ -227,47 +242,36 @@ const SettingsPage = () => {
           </div>
         )}
 
-        {activeTab === "logs" && (
-          <div className="glass-panel flex flex-col min-h-[500px] animate-in fade-in">
-            <div className="p-4 border-b border-stroke flex flex-wrap items-center justify-between gap-4 sticky top-0 bg-panel/95 backdrop-blur z-10">
-              <div className="flex gap-2">
-                <select value={logStatusFilter} onChange={(e) => setLogStatusFilter(e.target.value)} className="bg-surface border border-stroke text-sm rounded px-3 py-1.5 outline-none">
-                  <option value="all">Statuses</option>
-                  <option value="success">Success</option><option value="error">Error</option><option value="info">Info</option>
-                </select>
-                <select value={logModuleFilter} onChange={(e) => setLogModuleFilter(e.target.value)} className="bg-surface border border-stroke text-sm rounded px-3 py-1.5 outline-none">
-                  <option value="all">Modules</option>
-                  {uniqueModules.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-                <select value={logSortDir} onChange={(e) => setLogSortDir(e.target.value as any)} className="bg-surface border border-stroke text-sm rounded px-3 py-1.5 outline-none">
-                  <option value="desc">Newest</option><option value="asc">Oldest</option>
-                </select>
+        {activeTab === "integrations" && (
+          <div className="glass-panel p-6 space-y-6 max-w-2xl animate-in fade-in">
+            <h2 className="text-lg font-bold text-fg-secondary border-b pb-2">Browser Integrations</h2>
+            <div className="flex flex-col md:flex-row gap-6 p-6 bg-surface border border-stroke rounded-xl items-center">
+              <div className="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center border border-primary/20 shrink-0">
+                 <span className="text-3xl">🔌</span>
               </div>
-              <div className="flex gap-2">
-                <button onClick={handleExportLogs} className="btn-ghost text-xs font-bold px-3 py-1">JSON</button>
-                <button onClick={handleClearLogs} disabled={clearingLogs} className="btn-ghost text-rose-400 text-xs font-bold px-3 py-1">{clearingLogs ? "..." : "Clear"}</button>
+              <div className="flex-1 space-y-2 text-center md:text-left">
+                <h3 className="text-base font-bold text-fg-secondary">NodLync Chrome Extension</h3>
+                <p className="text-sm text-fg-muted italic">Capture API requests directly from your browser and import them into the AI Tester with one click.</p>
+                <div className="flex flex-wrap gap-2 pt-2 justify-center md:justify-start">
+                     <a href="/NodLync-Extension.zip" download className="btn-primary px-5 py-2 text-xs font-bold">Download (.zip)</a>
+                     <Link to="/docs/extension" className="btn-ghost px-5 py-2 text-xs font-bold">Learn More</Link>
+                </div>
               </div>
             </div>
-            <div className="flex-1 p-4 overflow-y-auto">
-              {loadingLogs ? <div className="p-8 text-center text-sm text-fg-muted">Loading logs...</div> : filteredLogs.length === 0 ? <div className="p-8 text-center text-sm text-fg-muted">No logs recorded.</div> :
-                logsPagination.paginatedItems.map(log => (
-                  <div key={log.id} className="grid grid-cols-[120px,80px,1fr] gap-3 text-[11px] font-mono p-2 border-b border-stroke/50 hover:bg-surface/30 transition">
-                    <span className="text-fg-muted">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                    <span className={log.type === "error" ? "text-rose-400 font-bold" : log.type === "success" ? "text-emerald-400 font-bold" : "text-blue-400 font-bold"}>{log.type}</span>
-                    <span className="text-fg-secondary truncate">{log.message}</span>
-                  </div>
-                ))
-              }
+            <div className="space-y-4">
+              <h4 className="text-sm font-bold text-fg-muted uppercase tracking-widest">Quick Installation</h4>
+              <ol className="text-sm text-fg-secondary space-y-3 list-decimal list-inside ml-2">
+                <li className="pl-2">Download and extract the <span className="text-primary font-bold">NodLync-Extension.zip</span> file.</li>
+                <li className="pl-2">Open <span className="font-mono text-xs bg-panel px-1.5 py-0.5 rounded">chrome://extensions</span> in your browser.</li>
+                <li className="pl-2">Enable <span className="font-bold underline">Developer Mode</span> (top right).</li>
+                <li className="pl-2">Click <span className="font-bold">Load Unpacked</span> and select the extracted folder.</li>
+              </ol>
             </div>
-            {filteredLogs.length > 0 && (
-              <PaginationControls
-                {...logsPagination}
-                onPageChange={logsPagination.setCurrentPage}
-                onPageSizeChange={logsPagination.setPageSize}
-                itemLabel="logs"
-              />
-            )}
           </div>
+        )}
+
+        {activeTab === "logs" && (
+          <SystemLogsPanel userId={user?.id} />
         )}
 
         {activeTab === "ai" && appSettings && (

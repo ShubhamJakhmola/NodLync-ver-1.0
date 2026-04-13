@@ -3,6 +3,7 @@ import ModuleHeader from "../components/ModuleHeader";
 import InlineSpinner from "../components/InlineSpinner";
 import useAppStore from "../store/useAppStore";
 import { useMyStuff, useMyStuffItems } from "../hooks/useMyStuff";
+import { logAppEvent } from "../utils/appLogger";
 import type { MyStuffItem } from "../api/myStuffApi";
 
 const MyStuffPage = () => {
@@ -39,6 +40,18 @@ const MyStuffPage = () => {
       setSelectedCategoryId(categories[0].id);
     }
   }, [categories, selectedCategoryId]);
+
+  // Log My Stuff view
+  useEffect(() => {
+    if (userId && categories.length > 0) {
+      void logAppEvent({
+        type: "info",
+        module: "my-stuff",
+        message: `Viewed My Stuff with ${categories.length} categories`,
+        meta: { categoryCount: categories.length, itemCount: items.length },
+      });
+    }
+  }, [userId, categories.length, items.length]);
 
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
 

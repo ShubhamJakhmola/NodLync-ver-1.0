@@ -13,6 +13,87 @@ export interface SystemLogEntry {
   raw?: unknown;
 }
 
+// Enhanced centralized logging types
+export type LogLevel = "debug" | "info" | "warning" | "error" | "fatal";
+
+export type LogSource = "frontend" | "backend" | "worker" | "integration" | "ai" | "system";
+
+export interface LogMetadata {
+  [key: string]: unknown;
+  duration?: number;
+  requestId?: string;
+  userAgent?: string;
+  url?: string;
+  method?: string;
+  statusCode?: number;
+  error?: string;
+  stack?: string;
+  component?: string;
+  action?: string;
+}
+
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  level: LogLevel;
+  module: string;
+  service: string;
+  source: LogSource;
+  message: string;
+  metadata: LogMetadata;
+  userId?: string;
+  projectId?: string;
+  sessionId?: string;
+}
+
+export interface LogFilter {
+  level?: LogLevel | "all";
+  module?: string;
+  service?: string;
+  source?: LogSource | "all";
+  search?: string;
+  searchQuery?: string;
+  startTime?: Date;
+  endTime?: Date;
+  userId?: string;
+  projectId?: string;
+}
+
+export interface LogPaginationOptions {
+  page?: number;
+  pageSize?: number;
+  cursor?: string;
+  direction?: "newer" | "older";
+}
+
+export interface LogQueryResult {
+  logs: LogEntry[];
+  totalCount: number;
+  hasMore: boolean;
+  nextCursor?: string;
+  statistics?: LogStatistics;
+}
+
+export interface LogStatistics {
+  totalLogs: number;
+  debugLogs: number;
+  infoLogs: number;
+  warningLogs: number;
+  errorLogs: number;
+  fatalLogs: number;
+  uniqueModules: string[];
+  uniqueServices: string[];
+  uniqueSources: string[];
+  oldestLog?: Date;
+  newestLog?: Date;
+}
+
+export interface RealtimeLogOptions {
+  enabled: boolean;
+  bufferSize?: number;
+  filter?: LogFilter;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -58,4 +139,37 @@ export interface AppLogRow {
   status: "success" | "error" | "info";
   details: unknown;
   created_at: string;
+}
+
+// Database schema for existing app_logs table
+export interface AppLogsRow {
+  "Id": string;
+  "Timestamp": string;
+  "User": string;
+  "Action": string;
+  "Status": string;
+  "Details": string;
+  user_id: string;
+  action?: string;
+  status?: string;
+  details?: string;
+  created_at?: string;
+  id?: string;
+  timestamp?: string;
+  user?: string;
+}
+
+// Enhanced LogEntry mapped to existing schema
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  level: LogLevel;
+  module: string;
+  service: string;
+  source: LogSource;
+  message: string;
+  metadata: LogMetadata;
+  userId?: string;
+  projectId?: string;
+  sessionId?: string;
 }

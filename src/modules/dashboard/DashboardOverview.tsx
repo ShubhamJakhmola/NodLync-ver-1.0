@@ -1,6 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDashboard } from "../../hooks/useDashboard";
+import { logAppEvent } from "../../utils/appLogger";
+import useAppStore from "../../store/useAppStore";
 import DashboardActiveProjectsOverview from "./DashboardActiveProjectsOverview";
 import DashboardAiInsightsCard from "./DashboardAiInsightsCard";
 import DashboardCalendarCard from "./DashboardCalendarCard";
@@ -14,6 +16,7 @@ import DashboardWorkflowsCard from "./DashboardWorkflowsCard";
 
 export default function DashboardOverview() {
   const navigate = useNavigate();
+  const user = useAppStore((s) => s.user);
   const {
     totalProjectsCount,
     activeTaskCount,
@@ -26,6 +29,18 @@ export default function DashboardOverview() {
     initialLoad,
     error,
   } = useDashboard();
+
+  // Log dashboard view
+  useEffect(() => {
+    if (user) {
+      void logAppEvent({
+        type: "info",
+        module: "dashboard",
+        message: `Viewed dashboard with ${totalProjectsCount} projects, ${activeTaskCount} tasks`,
+        meta: { totalProjectsCount, activeTaskCount, meetingsTodayCount, completionRate },
+      });
+    }
+  }, [user, totalProjectsCount, activeTaskCount, meetingsTodayCount, completionRate]);
 
   const now = useMemo(() => new Date(), []);
   const calendarYear = now.getFullYear();

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>NodLync Capture</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .launch-box {
+            padding: 16px;
+            background: linear-gradient(rgba(139, 92, 246, 0.1), transparent);
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+        }
+        .launch-btn {
+            width: 100%;
+            padding: 10px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(139, 92, 246, 0.2);
+            transition: all 0.2s;
+        }
+        .launch-btn:hover {
+            transform: translateY(-1px);
+            background: var(--primary-hover);
+        }
+        .subtext {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 8px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="icons/icon48.png" alt="NodLync" width="24" height="24">
+        <h1>NodLync API Capture</h1>
+        <div class="toggle-container">
+            <span id="captureStatus">OFF</span>
+            <label class="switch">
+                <input type="checkbox" id="captureToggle">
+                <span class="slider round"></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="launch-box">
+        <button id="launchDashboard" class="launch-btn">🚀 Open Inspector Dashboard</button>
+        <span class="subtext">Full data view, headers, and bodies.</span>
+    </div>
+
+    <div class="content">
+        <div id="noData" class="empty-state">
+            Waiting for activity...
+        </div>
+        <ul id="requestList" class="request-list" style="display: none;"></ul>
+    </div>
+
+    <div class="footer">
+        <button id="clearAll" class="btn-secondary">Clear</button>
+        <button id="sendToNodLync" class="btn-primary" disabled title="Select a request first">Send Selected</button>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
