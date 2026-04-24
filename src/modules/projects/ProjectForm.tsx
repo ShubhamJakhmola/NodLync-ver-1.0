@@ -6,14 +6,16 @@ import type { Project, ProjectStatus } from "../../types";
 const baseStatusOptions: ProjectStatus[] = [
   "draft",
   "active",
-  "paused",
+  "in_progress",
+  "completed",
   "archived",
 ];
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
   draft: "🟤 Draft",
   active: "🟢 Active",
-  paused: "🟡 Paused",
+  in_progress: "🔵 In Progress",
+  completed: "✅ Completed",
   archived: "⚫ Archived",
 };
 
@@ -110,74 +112,60 @@ const ProjectForm = ({
   const displayError = validationError || error;
 
   return (
-    <div className="glass-panel h-full flex flex-col">
+    <div className="h-full flex flex-col border border-stroke/40 rounded-xl bg-surface/5 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-stroke px-5 py-4">
+      <div className="flex items-center justify-between border-b border-stroke px-4 py-3">
         <div>
-          <p className="text-lg font-semibold">
-            {mode === "create" ? "New Project" : "Edit Project"}
+          <p className="text-base font-bold text-fg tracking-tight">
+            {mode === "create" ? "NEW PROJECT" : "EDIT PROJECT"}
           </p>
-          <p className="text-sm text-fg-muted">
+          <p className="text-[11px] text-fg-muted font-medium uppercase tracking-tighter">
             {mode === "create"
-              ? "Add a new project to your workspace."
+              ? "Initialize workspace"
               : initial?.name
-              ? `Editing: ${initial.name}`
-              : "Update project details."}
+              ? `ID: ${initial.id.split('-')[0]}`
+              : "Update metadata"}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Open Full Manager button (edit mode only) */}
           {mode === "edit" && initial?.id && (
             <button
               type="button"
-              className="btn-ghost text-sm flex items-center gap-1.5"
+              className="btn-ghost px-2 py-1 text-[10px] uppercase font-bold flex items-center gap-1"
               onClick={() => navigate(`/projects/${initial.id}`)}
               title="Open full project manager"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                />
-              </svg>
-              Open
+              MANAGER ➔
             </button>
           )}
           {onCancel && mode === "create" && (
             <button
-              className="btn-ghost text-sm"
+              className="btn-ghost px-2 py-1 text-[10px] uppercase font-bold"
               type="button"
               onClick={onCancel}
             >
-              Cancel
+              CLOSE
             </button>
           )}
         </div>
       </div>
 
       {/* Form */}
-      <form className="p-5 space-y-4 flex-1 overflow-y-auto" onSubmit={submit}>
+      <form className="p-4 space-y-3 flex-1 overflow-y-auto" onSubmit={submit}>
         {/* Name field */}
-        <label className="block space-y-1.5">
-          <span className="text-sm font-medium text-fg-secondary">
+        <label className="block space-y-1">
+          <span className="text-[10px] font-black uppercase tracking-widest text-fg-muted">
             Name <span className="text-rose-400">*</span>
           </span>
           <input
-            className={`w-full rounded-lg border bg-surface px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-primary transition ${
+            className={`w-full rounded-md border bg-surface px-3 py-1.5 text-sm text-fg focus:outline-none focus:ring-1 focus:ring-primary transition ${
               validationError && !name.trim()
                 ? "border-rose-600 focus:ring-rose-500"
                 : "border-stroke"
             }`}
-            placeholder="e.g. Mobile App Redesign"
+            placeholder="Project name"
             value={name}
             onChange={(e) => {
               setName(e.target.value);
@@ -188,22 +176,22 @@ const ProjectForm = ({
         </label>
 
         {/* Description field */}
-        <label className="block space-y-1.5">
-          <span className="text-sm font-medium text-fg-secondary">Description</span>
+        <label className="block space-y-1">
+          <span className="text-[10px] font-black uppercase tracking-widest text-fg-muted">Description</span>
           <textarea
-            className="w-full rounded-lg border border-stroke bg-surface px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-primary transition resize-none"
-            placeholder="Brief description of this project..."
-            rows={4}
+            className="w-full rounded-md border border-stroke bg-surface px-3 py-1.5 text-xs text-fg focus:outline-none focus:ring-1 focus:ring-primary transition resize-none"
+            placeholder="Scope and objectives..."
+            rows={3}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
         </label>
 
         {/* Status field */}
-        <label className="block space-y-1.5">
-          <span className="text-sm font-medium text-fg-secondary">Status</span>
+        <label className="block space-y-1">
+          <span className="text-[10px] font-black uppercase tracking-widest text-fg-muted">Current Status</span>
           <select
-            className="w-full rounded-lg border border-stroke bg-surface px-3 py-2 text-fg focus:outline-none focus:ring-2 focus:ring-primary transition"
+            className="w-full rounded-md border border-stroke bg-surface/50 px-3 py-1.5 text-xs text-fg-secondary focus:outline-none focus:ring-1 focus:ring-primary transition cursor-pointer appearance-none"
             value={status}
             onChange={(e) => setStatus(e.target.value as ProjectStatus)}
           >
@@ -232,41 +220,41 @@ const ProjectForm = ({
         )}
 
         {/* Action buttons */}
-        <div className="flex items-center gap-3 pt-1">
+        <div className="flex items-center gap-2 pt-0.5">
           <button
             type="submit"
-            className="btn-primary"
+            className="btn-primary text-[10px] font-black uppercase tracking-widest px-4 py-2 shadow-lg shadow-primary/20"
             disabled={busy}
           >
             {busy
-              ? "Saving..."
+              ? "SAVING..."
               : mode === "create"
-              ? "Create Project"
-              : "Save Changes"}
+              ? "CREATE PROJECT"
+              : "SAVE CHANGES"}
           </button>
 
           {mode === "edit" && onDelete && (
             <button
               type="button"
-              className={`btn-ghost text-sm transition ${
+              className={`px-3 py-2 text-[10px] font-bold uppercase tracking-widest rounded-md border transition ${
                 confirmDelete
                   ? "text-rose-200 border-rose-600 bg-rose-900/40 hover:bg-rose-800/50"
-                  : "text-rose-400 border-rose-800 hover:bg-rose-900/30"
+                  : "text-rose-400 border-rose-800 hover:bg-rose-900/10"
               }`}
               onClick={handleDelete}
               disabled={busy}
             >
-              {confirmDelete ? "Confirm delete?" : "Delete"}
+              {confirmDelete ? "CONFIRM" : "DELETE"}
             </button>
           )}
 
           {confirmDelete && (
             <button
               type="button"
-              className="btn-ghost text-sm text-fg-muted"
+              className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-fg-muted hover:text-fg transition"
               onClick={() => setConfirmDelete(false)}
             >
-              Cancel
+              CANCEL
             </button>
           )}
         </div>

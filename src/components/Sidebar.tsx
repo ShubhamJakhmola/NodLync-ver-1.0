@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import useAppStore from "../store/useAppStore";
+import { AiProactiveHints } from "./AiProactiveHints";
 
 const Icons = {
   Dashboard: () => (
@@ -68,8 +69,22 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
   const userProfile = useAppStore((s) => s.userProfile);
 
   const handleNavClick = (to: string) => {
-    navigate(to);
-    onClose?.();
+    const isMobile = window.innerWidth < 1024;
+    
+    // On mobile, force hierarchy: any sidebar nav should have Dashboard as its 'Back' parent
+    if (isMobile && to !== "/") {
+      // First, effectively make the Dashboard the "entry point" in history
+      // We use replace: true for the first step to avoid cluttering but ensure it's the base
+      navigate("/", { replace: false });
+      // Then push the target
+      setTimeout(() => {
+        navigate(to);
+        onClose?.();
+      }, 10);
+    } else {
+      navigate(to);
+      onClose?.();
+    }
   };
 
   return (
@@ -129,6 +144,10 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
           ))}
         </ul>
       </nav>
+
+      <div className="flex-shrink-0">
+        <AiProactiveHints />
+      </div>
 
       <div
         onClick={() => {

@@ -11,14 +11,15 @@ const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [agreed, setAgreed] = useState(false);
+  const hasAgreedTerms = useAppStore((s) => s.hasAgreedTerms);
+  const setHasAgreedTerms = useAppStore((s) => s.setHasAgreedTerms);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!agreed) {
+    if (!hasAgreedTerms) {
       setError("Please confirm you have read the Privacy Policy and Terms & Conditions.");
       return;
     }
@@ -101,8 +102,8 @@ const LoginForm = () => {
           <input
             id="login-agree"
             type="checkbox"
-            checked={agreed}
-            onChange={(e) => setAgreed(e.target.checked)}
+            checked={hasAgreedTerms}
+            onChange={(e) => setHasAgreedTerms(e.target.checked)}
             className="h-4 w-4 text-primary rounded bg-surface border border-stroke-strong"
           />
           <label htmlFor="login-agree" className="leading-relaxed">

@@ -102,6 +102,84 @@ const parseUrlParts = (fullUrl: string) => {
   }
 };
 
+const parseCurlCommand = (input: string) => {
+  const cleanInput = input.replace(/\\\n/g, " ").trim();
+  if (!cleanInput.toLowerCase().startsWith("curl")) return null;
+
+  // Robust tokenization: split by spaces but preserve quoted strings
+  const tokens: string[] = [];
+  let currentToken = "";
+  let inQuote = false;
+  let quoteChar = "";
+
+  for (let i = 0; i < cleanInput.length; i++) {
+    const char = cleanInput[i];
+    if ((char === '"' || char === "'") && (i === 0 || cleanInput[i - 1] !== "\\")) {
+      if (inQuote && char === quoteChar) {
+        inQuote = false;
+      } else if (!inQuote) {
+        inQuote = true;
+        quoteChar = char;
+      } else {
+        currentToken += char;
+      }
+    } else if (char === " " && !inQuote) {
+      if (currentToken) tokens.push(currentToken);
+      currentToken = "";
+    } else {
+      currentToken += char;
+    }
+  }
+  if (currentToken) tokens.push(currentToken);
+
+  const result = {
+    method: "GET" as HttpMethod,
+    url: "",
+    headers: [] as KeyValueRow[],
+    body: "",
+    authMode: "none" as AuthMode,
+    bearerToken: "",
+  };
+
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const next = tokens[i + 1];
+
+    if (t === "-X" || t === "--request") {
+      if (next) {
+        result.method = next.toUpperCase() as HttpMethod;
+        i++;
+      }
+    } else if (t === "-H" || t === "--header") {
+      if (next) {
+        const colonIndex = next.indexOf(":");
+        if (colonIndex !== -1) {
+          const key = next.substring(0, colonIndex).trim();
+          const value = next.substring(colonIndex + 1).trim();
+          if (key.toLowerCase() === "authorization" && value.startsWith("Bearer ")) {
+            result.authMode = "bearer";
+            result.bearerToken = value.substring(7);
+          } else {
+            result.headers.push(makeRow(key, value));
+          }
+        }
+        i++;
+      }
+    } else if (["-d", "--data", "--data-raw", "--data-binary"].includes(t)) {
+      if (next) {
+        result.body = next;
+        if (result.method === "GET") result.method = "POST";
+        i++;
+      }
+    } else if (t.includes(".") && !t.startsWith("-") && t.toLowerCase() !== "curl") {
+      // Very simple URL detection
+      if (!result.url) result.url = t;
+    }
+  }
+
+  return result;
+};
+
 const KeyValueEditor = ({
   label,
   rows,
@@ -170,6 +248,7 @@ const ApiTesterPanel = () => {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<SavedResponse | null>(null);
   const [testerTab, setTesterTab] = useState<"params" | "auth" | "headers" | "body">("params");
+  const [useProxy, setUseProxy] = useState(false);
   
   // Lists State
   const [apiHistory, setApiHistory] = useState<ApiHistoryItem[]>([]);
@@ -225,6 +304,63 @@ const ApiTesterPanel = () => {
     } catch { return normalizeUrlWithProtocol(url); }
   }, [url, params]);
 
+  const generatedCurl = useMemo(() => {
+    if (!url.trim()) return "";
+    let c = `curl -X ${method} "${requestUrlWithProtocol}"`;
+    headers.filter(h => h.enabled && h.key).forEach(h => {
+      c += ` \\\n  -H "${h.key}: ${h.value}"`;
+    });
+    if (authMode === "bearer" && bearerToken.trim()) {
+      c += ` \\\n  -H "Authorization: Bearer ${bearerToken.trim()}"`;
+    }
+    if (["POST", "PUT", "PATCH"].includes(method) && body.trim() && body !== "{\n  \n}") {
+      try {
+        const minified = JSON.stringify(JSON.parse(body));
+        c += ` \\\n  -d '${minified.replace(/'/g, "'\\''")}'`;
+      } catch {
+        c += ` \\\n  -d '${body.replace(/'/g, "'\\''")}'`;
+      }
+    }
+    return c;
+  }, [method, requestUrlWithProtocol, headers, authMode, bearerToken, body]);
+
+  const handleUrlChange = (value: string) => {
+    const curlData = parseCurlCommand(value);
+    if (curlData) {
+      setMethod(curlData.method);
+      const { baseUrl, params: p } = parseUrlParts(curlData.url);
+      setUrl(baseUrl);
+      setParams(p.length ? p : [emptyRow()]);
+      setHeaders(curlData.headers.length ? curlData.headers : [emptyRow()]);
+      setAuthMode(curlData.authMode);
+      setBearerToken(curlData.bearerToken);
+      if (curlData.body) {
+        try {
+          // Try to format if it's JSON
+          const formatted = JSON.stringify(JSON.parse(curlData.body), null, 2);
+          setBody(formatted);
+        } catch {
+          setBody(curlData.body);
+        }
+      }
+      return;
+    }
+    setUrl(value);
+  };
+
+  const handleClearRequest = () => {
+    setMethod("GET");
+    setUrl("");
+    setParams([emptyRow()]);
+    setHeaders([emptyRow()]);
+    setAuthMode("none");
+    setBearerToken("");
+    setBody("{\n  \n}");
+    setResponse(null);
+    localStorage.removeItem(STORAGE_KEY_REQUEST);
+    localStorage.removeItem(STORAGE_KEY_RESPONSE);
+  };
+
   const sendRequest = async () => {
     if (!url.trim() || loading) return;
     setLoading(true); setResponse(null);
@@ -235,7 +371,7 @@ const ApiTesterPanel = () => {
       if (authMode === "bearer" && bearerToken.trim()) hdrs["Authorization"] = `Bearer ${bearerToken.trim()}`;
       if (["POST", "PUT", "PATCH"].includes(method) && !hdrs["Content-Type"]) hdrs["Content-Type"] = "application/json";
 
-      const res = await fetch(requestUrlWithProtocol, { method, headers: hdrs, body: ["POST", "PUT", "PATCH"].includes(method) ? body : undefined });
+      const res = await fetch(useProxy ? `https://corsproxy.io/?${encodeURIComponent(requestUrlWithProtocol)}` : requestUrlWithProtocol, { method, headers: hdrs, body: ["POST", "PUT", "PATCH"].includes(method) ? body : undefined });
       const durationMs = performance.now() - start;
       const resH: Record<string, string> = {}; res.headers.forEach((v, k) => resH[k] = v);
       const txt = await res.text();
@@ -244,11 +380,17 @@ const ApiTesterPanel = () => {
       setResponse(payload);
       localStorage.setItem(STORAGE_KEY_RESPONSE, JSON.stringify(payload));
       if (user) {
-        await supabase.from("api_history").insert({ user_id: user.id, method, url, headers: hdrs, body: body.trim() ? JSON.parse(body) : null, status_code: res.status, response_preview: pretty.slice(0, 1000) });
+        await supabase.from("api_history").insert({ user_id: user.id, method, url: requestUrlWithProtocol, headers: hdrs, body: body.trim() && body !== "{\n  \n}" ? JSON.parse(body) : null, status_code: res.status, response_preview: pretty.slice(0, 1000) });
         const { data: upHistory } = await supabase.from("api_history").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
         if (upHistory) setApiHistory(upHistory as any);
       }
-    } catch (err: any) { setResponse({ errorMessage: err.message, durationMs: performance.now() - start }); }
+    } catch (err: any) {
+      let msg = err.message;
+      if (msg === "Failed to fetch") {
+        msg = "CORS_ERROR / NETWORK_FAILURE: The browser was unable to complete the request. This usually means the remote server doesn't allow cross-origin requests from this domain or the endpoint is unreachable. Ensure the server includes 'Access-Control-Allow-Origin: *' (or your domain) in its headers.";
+      }
+      setResponse({ errorMessage: msg, durationMs: performance.now() - start });
+    }
     finally { setLoading(false); }
   };
 
@@ -285,6 +427,47 @@ const ApiTesterPanel = () => {
   const clearCaptured = async () => {
     if (user) await supabase.from("captured_requests").delete().eq("user_id", user.id);
     setCapturedRequests([]);
+  };
+
+  const handleClearHistory = async () => {
+    if (!user) return;
+    if (!confirm("Are you sure you want to permanently clear all API transaction logs?")) return;
+    await supabase.from("api_history").delete().eq("user_id", user.id);
+    setApiHistory([]);
+  };
+
+  const handleExportHistory = () => {
+    if (apiHistory.length === 0) return;
+    let content = "NODLYNC API TESTER HISTORY (cURL EXPORT)\n";
+    content += `Generated: ${new Date().toLocaleString()}\n`;
+    content += "=".repeat(60) + "\n\n";
+
+    apiHistory.forEach((item, idx) => {
+      let curl = `curl -X ${item.method} "${item.url}"`;
+      if (item.headers) {
+        Object.entries(item.headers).forEach(([k, v]) => {
+          curl += ` \\\n  -H "${k}: ${v}"`;
+        });
+      }
+      if (item.body) {
+        const b = typeof item.body === 'string' ? item.body : JSON.stringify(item.body);
+        if (b && b !== '{}' && b !== '"{}"') {
+           curl += ` \\\n  -d '${b.replace(/'/g, "'\\''")}'`;
+        }
+      }
+
+      content += `ENTRY #${apiHistory.length - idx} [${new Date(item.created_at).toLocaleTimeString()}]\n`;
+      content += `${curl}\n`;
+      content += "-".repeat(40) + "\n\n";
+    });
+
+    const blob = new Blob([content], { type: "text/plain" });
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = u;
+    a.download = `nodlync_curl_logs_${new Date().toISOString().split('T')[0]}.txt`;
+    a.click();
+    URL.revokeObjectURL(u);
   };
 
   return (
@@ -376,10 +559,18 @@ const ApiTesterPanel = () => {
                         <select value={method} onChange={e => setMethod(e.target.value as any)} className="bg-panel border border-stroke rounded-2xl px-5 py-3 text-sm font-black w-36 focus:ring-2 focus:ring-primary/40 outline-none transition-all shadow-lg">
                            <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
                         </select>
-                        <input value={url} onChange={e => setUrl(e.target.value)} placeholder="API ENDPOINT URL..." className="flex-1 bg-surface border border-stroke rounded-2xl px-6 py-3 text-xs font-mono focus:ring-2 focus:ring-primary/40 outline-none shadow-inner tracking-tight placeholder:italic" />
-                        <button onClick={sendRequest} disabled={loading} className="btn-primary px-12 font-black tracking-[0.2em] text-xs h-[46px] shadow-xl shadow-primary/20 animate-none transform active:scale-95 transition-all">
-                           {loading ? "PENDING" : "DEPLOY"}
-                        </button>
+                        <input value={url} onChange={e => handleUrlChange(e.target.value)} placeholder="API ENDPOINT URL..." className="flex-1 bg-surface border border-stroke rounded-2xl px-6 py-3 text-xs font-mono focus:ring-2 focus:ring-primary/40 outline-none shadow-inner tracking-tight placeholder:italic" />
+                        <div className="flex gap-2">
+                           <button onClick={() => setUseProxy(!useProxy)} className={`px-4 py-3 text-[10px] font-black uppercase tracking-widest rounded-2xl border transition-all ${useProxy ? 'bg-emerald-400/20 border-emerald-400 text-emerald-400 shadow-lg shadow-emerald-400/10' : 'bg-panel border-stroke text-fg-muted hover:text-fg'}`} title="Bypass CORS restrictions using a proxy">
+                             Proxy: {useProxy ? 'ON' : 'OFF'}
+                           </button>
+                           <button onClick={handleClearRequest} className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-fg-muted hover:text-fg transition-all">
+                              Clear
+                           </button>
+                           <button onClick={sendRequest} disabled={loading} className="btn-primary px-10 font-black tracking-[0.2em] text-xs h-[46px] shadow-xl shadow-primary/20 animate-none transform active:scale-95 transition-all">
+                              {loading ? "SENDING..." : "TEST"}
+                           </button>
+                        </div>
                      </div>
                   </div>
                   <div className="flex-1 flex flex-col overflow-hidden">
@@ -446,9 +637,21 @@ const ApiTesterPanel = () => {
                            )}
                         </div>
                       ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-fg-muted space-y-6 opacity-20 group-hover:opacity-40 transition-opacity duration-700">
-                           <div className="p-8 rounded-full border-2 border-dashed border-fg-muted text-5xl animate-spin-slow">📡</div>
-                           <div className="text-[11px] font-black uppercase tracking-[0.5em] text-center">Awaiting Transmission...</div>
+                        <div className="h-full flex flex-col space-y-6">
+                           <div className="flex-1 flex flex-col items-center justify-center text-fg-muted space-y-4 opacity-40 py-10 transition-opacity duration-700">
+                             <div className="p-8 rounded-full border-2 border-dashed border-fg-muted text-5xl animate-spin-slow">📡</div>
+                             <div className="text-[11px] font-black uppercase tracking-[0.5em] text-center">Awaiting Transmission...</div>
+                           </div>
+                           
+                           {generatedCurl && (
+                             <div className="p-6 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                               <div className="flex items-center justify-between">
+                                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Outgoing Request (cURL)</span>
+                                  <button onClick={() => { navigator.clipboard.writeText(generatedCurl); }} className="text-[8px] font-black text-fg-muted hover:text-emerald-400 uppercase transition-colors tracking-widest">Copy to Clipboard</button>
+                               </div>
+                               <pre className="text-[10px] text-emerald-400/80 leading-relaxed font-mono whitespace-pre-wrap break-all border-l-2 border-emerald-500/20 pl-4">{generatedCurl}</pre>
+                             </div>
+                           )}
                         </div>
                       )}
                   </div>
@@ -457,13 +660,23 @@ const ApiTesterPanel = () => {
 
             {/* Bottom Panel: Global Request History */}
             <div className="h-1/4 min-h-[160px] glass-panel flex flex-col overflow-hidden border-stroke/50 bg-surface/30 shadow-2xl">
-               <div className="px-6 h-10 border-b border-stroke bg-panel/40 flex items-center justify-between">
-                  <h3 className="text-[10px] font-black text-fg-muted uppercase tracking-[0.2em] flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-primary rounded-full" />
-                    Archive & Session Logs
-                  </h3>
-                  <div className="text-[9px] font-black text-fg-muted uppercase">{apiHistory.length} ENTRIES RECORDED</div>
-               </div>
+                <div className="px-6 h-10 border-b border-stroke bg-panel/40 flex items-center justify-between">
+                   <h3 className="text-[10px] font-black text-fg-muted uppercase tracking-[0.2em] flex items-center gap-2">
+                     <span className="w-1.5 h-1.5 bg-primary rounded-full" />
+                     Archive & Session Logs
+                   </h3>
+                   <div className="flex items-center gap-6">
+                      <div className="text-[8px] font-black text-fg-muted uppercase tracking-widest">{apiHistory.length} ENTRIES RECORDED</div>
+                      <div className="flex gap-4">
+                         <button onClick={handleExportHistory} className="text-[9px] font-black text-primary hover:text-primary-hover uppercase tracking-widest transition-colors flex items-center gap-1.5">
+                            <span className="text-xs">↓</span> Download Logs
+                         </button>
+                         <button onClick={handleClearHistory} className="text-[9px] font-black text-rose-400 hover:text-rose-300 uppercase tracking-widest transition-colors">
+                            Clear Archive
+                         </button>
+                      </div>
+                   </div>
+                </div>
                <div className="flex-1 overflow-auto p-3 custom-scrollbar">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
                      {apiHistory.length === 0 ? (

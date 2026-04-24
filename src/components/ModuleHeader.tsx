@@ -21,6 +21,7 @@ export default function ModuleHeader({
   refreshLabel = "Refresh module",
   hideRefreshButton = false,
 }: ModuleHeaderProps) {
+
   const handleRefreshClick = () => {
     if (onRefresh) {
       onRefresh();

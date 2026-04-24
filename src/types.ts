@@ -1,6 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 
-export type ProjectStatus = "draft" | "active" | "paused" | "archived";
+export type ProjectStatus = "draft" | "active" | "in_progress" | "completed" | "archived";
 
 export type SystemLogType = "info" | "error" | "success";
 

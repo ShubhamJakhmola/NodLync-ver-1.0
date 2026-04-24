@@ -13,6 +13,23 @@ const AppLayout = () => {
   const setAppSettings = useAppStore((s) => s.setAppSettings);
   useProjectBootstrap();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Global Mobile Hierarchy Resilience
+  // Seeds history so 'back' gesture from any leaf page on mobile returns to Dashboard
+  useEffect(() => {
+    const isMobile = window.innerWidth < 1024;
+    const isRoot = window.location.pathname === "/";
+    const hasSeeded = sessionStorage.getItem("history-seeded");
+
+    if (isMobile && !isRoot && !hasSeeded) {
+      const currentPath = window.location.pathname + window.location.search;
+      // Replace current entry with / then push the actual page
+      // This effectively puts Dashboard "behind" the current page in history
+      window.history.replaceState({ seeded: true }, "", "/");
+      window.history.pushState({ seeded: true }, "", currentPath);
+      sessionStorage.setItem("history-seeded", "true");
+    }
+  }, []);
   const [globalsLoading, setGlobalsLoading] = useState(true);
   const [globalsError, setGlobalsError] = useState<string | null>(null);
 
@@ -58,19 +75,6 @@ const AppLayout = () => {
   const projectsError = useAppStore((s) => s.projectsError);
   const hasWarmWorkspaceState = !!appSettings || !!userProfile;
 
-  // Apply real theme globally
-  useEffect(() => {
-    const root = document.documentElement;
-    const theme = appSettings?.theme === "light" ? "light" : "dark";
-    root.classList.remove("light", "dark");
-    root.classList.add(theme);
-    try {
-      window.localStorage.setItem("theme", theme);
-    } catch {
-      // ignore
-    }
-  }, [appSettings?.theme]);
-
   if (globalsLoading && !hasWarmWorkspaceState) {
     return (
       <div className="flex h-screen items-center justify-center bg-background text-fg-secondary gap-3">
@@ -113,8 +117,8 @@ const AppLayout = () => {
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6 custom-scrollbar">
-          <div className="max-w-[1600px] mx-auto w-full">
+        <div className="flex-1 overflow-y-auto px-2 sm:px-4 py-2 sm:py-4 custom-scrollbar">
+          <div className="max-w-[1800px] mx-auto w-full">
             {globalsLoading && hasWarmWorkspaceState ? (
               <div className="mb-4 rounded-2xl border border-stroke/60 bg-surface/70 px-4 py-3 text-sm text-fg-muted shadow-sm">
                 Restoring your workspace...

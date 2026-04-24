@@ -35,57 +35,68 @@ const ProjectRow = ({
     }, 220);
   };
 
+  const formattedDate = project.created_at
+    ? new Date(project.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : 'Unknown';
+
   return (
     <div
-      className={`group rounded-xl border px-4 py-3 transition-all duration-150 ${
+      className={`group border-b border-stroke/30 transition-all duration-150 relative ${
         selected
-          ? "border-primary/40 bg-primary/10 shadow-lg shadow-primary/10"
-          : "border-stroke bg-surface/30 hover:border-stroke-strong hover:bg-surface/60"
+          ? "bg-primary/10 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-primary z-10"
+          : "hover:bg-surface/50"
       }`}
     >
-      <div className="flex items-start gap-3">
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={onToggleSelected}
-          onClick={(event) => event.stopPropagation()}
-          className="mt-1 h-4 w-4 shrink-0 accent-primary"
-          aria-label={`Select ${project.name}`}
-        />
-
-        <button
-          type="button"
-          className="min-w-0 flex-1 text-left outline-none"
-          onClick={handleRowClick}
-          title="Single click to select. Double click to open full view."
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <p className={`truncate text-sm font-semibold ${selected ? "text-primary" : "text-fg-secondary"}`}>
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 lg:gap-4 px-3 py-2">
+        {/* Selection & Name Section */}
+        <div className="flex items-center gap-3 lg:col-span-6 flex-1 min-w-0">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={onToggleSelected}
+            onClick={(event) => event.stopPropagation()}
+            className="h-4 w-4 shrink-0 accent-primary cursor-pointer border-stroke-strong bg-background transition-all"
+            aria-label={`Select ${project.name}`}
+          />
+          <button
+            type="button"
+            className="min-w-0 flex-1 text-left outline-none"
+            onClick={handleRowClick}
+            title="Single click to select / Double click to open full view."
+          >
+            <p className={`truncate text-sm font-bold transition-colors ${selected ? "text-primary" : "text-fg"}`}>
               {project.name}
             </p>
-            {project.is_shared ? (
-              <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-sky-300">
-                Shared
-              </span>
-            ) : null}
+            <p className="truncate text-[11px] text-fg-muted mt-0.5 max-w-full lg:max-w-md">
+              {project.description?.trim() ? project.description : "No description."}
+            </p>
+          </button>
+        </div>
+
+        {/* Status & Metadata (Desktop inline, Mobile grouped) */}
+        <div className="flex items-center justify-between lg:justify-start gap-4 lg:gap-6 shrink-0 lg:w-[35%]">
+          <div className="lg:w-28 shrink-0">
             <StatusBadge status={project.status} />
           </div>
+          
+          <div className="flex flex-col items-end lg:items-start shrink-0 lg:w-24">
+            <span className="text-[10px] font-bold text-fg-muted uppercase tracking-tighter">{formattedDate}</span>
+            <span className="lg:hidden text-[9px] font-medium text-fg-muted/40 uppercase tracking-widest leading-none">Modified</span>
+          </div>
 
-          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-fg-muted">
-            {project.description?.trim() ? project.description : "No description"}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          className="btn-ghost shrink-0 whitespace-nowrap px-3 py-2 text-xs font-semibold uppercase tracking-widest opacity-0 transition group-hover:opacity-100"
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpen();
-          }}
-        >
-          Open
-        </button>
+          <div className="flex lg:flex-1 shrink-0 items-center justify-end">
+            <button
+              type="button"
+              className="btn-ghost px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest opacity-60 lg:opacity-40 group-hover:opacity-100 transition shadow-sm hover:bg-primary/20 hover:text-primary whitespace-nowrap"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpen();
+              }}
+            >
+              Manager ➔
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

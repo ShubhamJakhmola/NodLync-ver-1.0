@@ -76,13 +76,16 @@ const SettingsPage = () => {
     if (!user) return;
     const previous = appSettings;
     const updatedSettings = { 
-      ...appSettings, 
+      // Start with defaults or current values
+      user_id: user.id,
+      theme: (appSettings?.theme) || "light",
+      default_ai_provider: (appSettings?.default_ai_provider) || "openai",
+      notifications_enabled: (appSettings?.notifications_enabled) ?? false,
+      auto_update_enabled: (appSettings?.auto_update_enabled) ?? false,
+      // Layer current state
+      ...appSettings,
+      // Apply the new change last to ensure it wins
       [key]: value,
-      user_id: user.id, // Ensure user_id is always a string
-      theme: (appSettings?.theme) || "light", // Ensure theme is always a string
-      default_ai_provider: (appSettings?.default_ai_provider) || "openai", // Ensure default_ai_provider is always a string
-      notifications_enabled: (appSettings?.notifications_enabled) ?? false, // Ensure notifications_enabled is always a boolean
-      auto_update_enabled: (appSettings?.auto_update_enabled) ?? false, // Ensure auto_update_enabled is always a boolean
     };
     setAppSettings(updatedSettings);
     setSavingSettingKey(key);

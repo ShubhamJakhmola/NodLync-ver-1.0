@@ -24,7 +24,6 @@ import useAppStore from "./store/useAppStore";
 
 function App() {
   const setUser = useAppStore((s) => s.setUser);
-  const user = useAppStore((s) => s.user);
   const [checkingSession, setCheckingSession] = useState(() => !useAppStore.getState().user);
 
   // Keep the "is configured" banner logic without importing the full supabase client eagerly.
@@ -33,49 +32,63 @@ function App() {
   const supabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 
   useEffect(() => {
-    let unsubscribe: (() => void) | null = null;
+    let mounted = true;
+    let authListener: any = null;
 
-    const init = async () => {
+    const initAuth = async () => {
       const { supabase } = await import("./api/supabaseClient");
-
-      const { data, error } = await supabase.auth.getSession();
-      if (error) console.error("Session error", error.message);
-      if (data.session?.user) {
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (userError || !userData.user) {
-          console.error("Stored session is invalid", userError?.message);
-          await supabase.auth.signOut();
-          setUser(null);
-        } else {
-          setUser(userData.user);
+      
+      // Get initial session
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (mounted) {
+          if (session?.user) {
+            setUser(session.user);
+          } else {
+            setUser(null);
+          }
         }
-      } else {
-        setUser(null);
+        
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
+          if (mounted) {
+            if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') {
+              setUser(session?.user ?? null);
+            } else if (event === 'SIGNED_OUT') {
+              setUser(null);
+            }
+          }
+        });
+        authListener = subscription;
+      } catch (err) {
+        console.error("Auth init failed", err);
+      } finally {
+        if (mounted) setCheckingSession(false);
       }
-
-      const { data: listener } = supabase.auth.onAuthStateChange(
-        (event: string, session: { user: any } | null) => {
-          if (event === "TOKEN_REFRESHED") return;
-          setUser(session?.user ?? null);
-        }
-      );
-
-      unsubscribe = () => listener.subscription.unsubscribe();
-      setCheckingSession(false);
     };
 
-    void init();
+    initAuth();
 
     return () => {
-      unsubscribe?.();
+      mounted = false;
+      authListener?.unsubscribe();
     };
   }, [setUser]);
 
+  const appSettings = useAppStore((s) => s.appSettings);
+
+  // Apply real theme globally (public + private routes)
   useEffect(() => {
-    if (user && checkingSession) {
-      setCheckingSession(false);
+    const root = document.documentElement;
+    const theme = appSettings?.theme === "light" ? "light" : "dark";
+    root.classList.remove("light", "dark");
+    root.classList.add(theme);
+    try {
+      window.localStorage.setItem("theme", theme);
+    } catch {
+      // ignore
     }
-  }, [user, checkingSession]);
+  }, [appSettings?.theme]);
 
   if (checkingSession) {
     return <LoadingScreen message="Initializing session..." />;

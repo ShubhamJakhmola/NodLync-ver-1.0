@@ -101,6 +101,23 @@ button, input, textarea, select {
   max-width: 100%;
 }
 
+select {
+  color-scheme: dark !important;
+  cursor: pointer;
+  appearance: none; /* Prepare for custom arrows */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor' %3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  padding-right: 2.5rem !important;
+}
+
+select option {
+  background-color: #111827; /* Tailwind Gray-900 equivalent */
+  color: #f3f4f6; /* Gray-100 */
+  padding: 10px;
+}
+
 button {
   -webkit-tap-highlight-color: transparent;
 }

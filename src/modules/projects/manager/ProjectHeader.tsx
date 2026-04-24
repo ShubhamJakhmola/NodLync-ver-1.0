@@ -19,7 +19,8 @@ interface Props {
 const STATUS_DOT: Record<ProjectStatus, string> = {
   draft: "bg-fg-muted",
   active: "bg-emerald-400",
-  paused: "bg-amber-400",
+  in_progress: "bg-blue-400",
+  completed: "bg-emerald-500",
   archived: "bg-surface",
 };
 
@@ -48,7 +49,9 @@ const ProjectHeader = ({
           Projects
         </button>
         <span>{">"}</span>
-        <span className="max-w-xs truncate font-medium text-fg-secondary">{project.name}</span>
+        <span className="max-w-xs truncate font-medium text-fg-secondary">
+          {project.name}
+        </span>
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">

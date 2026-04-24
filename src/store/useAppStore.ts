@@ -28,6 +28,10 @@ interface AppState {
   setAppSettings: (settings: AppSettings | null) => void;
   setAppLogs: (logs: SystemLogEntry[]) => void;
   addAppLog: (log: SystemLogEntry) => void;
+
+  // Persistent Auth states
+  hasAgreedTerms: boolean;
+  setHasAgreedTerms: (val: boolean) => void;
 }
 
 const useAppStore = create<AppState>()(
@@ -92,6 +96,9 @@ const useAppStore = create<AppState>()(
   setAppLogs: (appLogs) => set({ appLogs }),
   addAppLog: (log) =>
     set((state) => ({ appLogs: [log, ...state.appLogs].slice(0, 200) })),
+
+  hasAgreedTerms: false,
+  setHasAgreedTerms: (hasAgreedTerms) => set({ hasAgreedTerms }),
     }),
     {
       name: "nodlync-app-store",
@@ -104,6 +111,7 @@ const useAppStore = create<AppState>()(
         userProfile: state.userProfile,
         appSettings: state.appSettings,
         appLogs: state.appLogs,
+        hasAgreedTerms: state.hasAgreedTerms,
       }),
     }
   )

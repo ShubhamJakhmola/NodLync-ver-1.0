@@ -1,10 +1,11 @@
 import type { ProjectStatus } from "../types";
 
 const variants: Record<string, string> = {
-  draft: "bg-panel text-fg-secondary border-stroke",
-  active: "bg-emerald-900/40 text-emerald-200 border-emerald-700",
-  paused: "bg-amber-900/40 text-amber-200 border-amber-700",
-  archived: "bg-panel/60 text-fg-muted border-stroke/60",
+  draft: "bg-panel text-fg-secondary border-stroke uppercase text-[10px] tracking-widest",
+  active: "bg-emerald-900/40 text-emerald-200 border-emerald-700 uppercase text-[10px] tracking-widest",
+  in_progress: "bg-blue-900/40 text-blue-200 border-blue-700 uppercase text-[10px] tracking-widest",
+  completed: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 uppercase text-[10px] tracking-widest",
+  archived: "bg-panel/60 text-fg-muted border-stroke/60 uppercase text-[10px] tracking-widest",
 };
 
 const StatusBadge = ({ status }: { status: ProjectStatus }) => {

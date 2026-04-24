@@ -130,6 +130,13 @@ export function useProjects() {
     return res;
   };
 
+  const handleBulkUpdate = async (ids: string[], payload: Partial<Project>) => {
+    // Process in sequence to avoid race conditions on optimistic updates
+    for (const id of ids) {
+      await handleUpdate(id, payload);
+    }
+  };
+
   return {
     projects,
     loading: isLoading,
@@ -140,6 +147,7 @@ export function useProjects() {
     handleCreate,
     handleUpdate,
     handleDelete,
+    handleBulkUpdate,
     setSelectedProject,
     setIsCreateMode,
     user,
