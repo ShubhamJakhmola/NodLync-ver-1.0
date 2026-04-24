@@ -250,7 +250,7 @@ const MeetingsPage = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-theme(spacing.16))] flex flex-col lg:flex-row gap-6 relative">
+    <div className="min-h-[calc(100vh-theme(spacing.16))] flex flex-col lg:flex-row gap-4 lg:gap-6 relative pb-4">
       <div className="absolute top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         {toasts.map((t) => (
           <div
@@ -332,7 +332,7 @@ const MeetingsPage = () => {
                                {getCountdownText(m.scheduled_at)}
                             </span>
                          </div>
-                         <div className="w-24 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <div className="w-24 flex justify-end gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
                             <button onClick={(e) => launchMeeting(m.meeting_url, e)} className="p-1.5 hover:bg-primary/20 rounded text-primary" title="Join">🚀</button>
                             <button onClick={(e) => handleDelete(m.id, e)} className="p-1.5 hover:bg-rose-500/20 rounded text-rose-400" title="Delete">🗑️</button>
                          </div>
@@ -392,7 +392,7 @@ const MeetingsPage = () => {
                             <span className="text-xxs font-mono text-fg-muted">
                                {new Date(m.scheduled_at).toLocaleDateString()}
                             </span>
-                            <button onClick={(e) => handleDelete(m.id, e)} className="p-1.5 hover:bg-rose-500/10 rounded text-rose-500/40 opacity-0 group-hover:opacity-100">🗑️</button>
+                            <button onClick={(e) => handleDelete(m.id, e)} className="p-1.5 hover:bg-rose-500/10 rounded text-rose-500/40 opacity-70 group-hover:opacity-100">🗑️</button>
                          </div>
                       </div>
                    ))}
@@ -416,7 +416,7 @@ const MeetingsPage = () => {
         )}
       </div>
 
-      <div className="w-full lg:w-[400px] shrink-0 bg-surface rounded-2xl border border-stroke shadow-2xl overflow-hidden flex flex-col h-full">
+      <div className="w-full lg:w-[400px] shrink-0 bg-surface rounded-2xl border border-stroke shadow-2xl overflow-hidden flex flex-col lg:h-full">
          <div className="p-6 border-b border-stroke bg-surface/20 backdrop-blur-md">
             <h2 className="text-lg font-bold text-fg flex items-center gap-2">
                <span>{selectedMeeting ? "📅 Edit Meeting" : "✨ New Meeting"}</span>

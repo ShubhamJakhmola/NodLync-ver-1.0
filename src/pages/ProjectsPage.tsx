@@ -139,8 +139,8 @@ const ProjectsPage = () => {
         </button>
       </ModuleHeader>
 
-      <div className="grid grid-cols-1 gap-3 min-h-0 flex-1 lg:grid-cols-12 items-stretch">
-        <div className="flex flex-col min-h-0 lg:col-span-5">
+      <div className="grid grid-cols-1 gap-4 min-h-0 flex-1 md:grid-cols-[55fr_45fr] xl:grid-cols-[60fr_40fr] items-stretch">
+        <div className="flex flex-col min-h-0 h-full w-full">
           <ProjectList
             projects={projects}
             selectedId={selectedProject?.id}
@@ -161,7 +161,7 @@ const ProjectsPage = () => {
           />
         </div>
 
-        <div className="flex flex-col min-h-0 lg:col-span-7 h-full">
+        <div className="flex flex-col min-h-0 h-full w-full">
           {selectedProject ? (
             <ProjectForm
               key={selectedProject.id}

@@ -143,7 +143,7 @@ const MyStuffPage = () => {
   }
 
   return (
-    <div className="flex h-[calc(100vh-theme(spacing.16))] flex-col gap-6">
+    <div className="flex min-h-[calc(100vh-theme(spacing.16))] flex-col gap-4 lg:gap-6 pb-4">
       <ModuleHeader 
         title="My Stuff" 
         description="ORGANIZE YOUR PERSONAL LINKS AND NOTES" 
@@ -165,21 +165,21 @@ const MyStuffPage = () => {
         </div>
       </ModuleHeader>
 
-      <div className="flex flex-1 gap-6 overflow-hidden">
-        {/* Categories Sidebar */}
-        <aside className="glass-panel w-72 flex flex-col overflow-hidden bg-surface/20">
+      <div className="flex flex-1 flex-col lg:flex-row gap-4 lg:gap-6 overflow-hidden">
+        {/* Categories Sidebar — horizontal strip on mobile, vertical on desktop */}
+        <aside className="glass-panel w-full lg:w-72 flex flex-col overflow-hidden bg-surface/20 shrink-0 max-h-[180px] lg:max-h-none">
           <div className="border-b border-stroke px-6 py-4">
             <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-fg-muted">Categories</h3>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 space-y-1">
+          <div className="flex-1 overflow-y-auto lg:overflow-y-auto overflow-x-auto p-3 lg:p-4 flex lg:flex-col gap-1 lg:gap-1">
             {categories.length === 0 ? (
               <p className="p-4 text-center text-sm text-fg-muted">No categories yet.</p>
             ) : (
               categories.map((category) => (
                 <div
                   key={category.id}
-                  className={`group relative flex items-center justify-between rounded-xl px-4 py-3 cursor-pointer transition-all ${
+                  className={`group relative flex items-center justify-between rounded-xl px-4 py-3 cursor-pointer transition-all whitespace-nowrap lg:whitespace-normal shrink-0 lg:shrink ${
                     selectedCategoryId === category.id
                       ? "bg-primary/10 text-primary border border-primary/20"
                       : "text-fg-muted hover:bg-surface/50 border border-transparent"
@@ -243,7 +243,7 @@ const MyStuffPage = () => {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
                 {items.map((item) => (
                   <article
                     key={item.id}

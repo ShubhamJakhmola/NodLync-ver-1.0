@@ -48,6 +48,18 @@
             <button id="clearBtn" class="btn-ghost-danger">Clear</button>
         </div>
     </div>
+    
+    <!-- Version Update Banner -->
+    <div id="updateBanner" style="display:none; background: linear-gradient(90deg, #0ea5e9, #38bdf8); color: white; padding: 10px 20px; align-items: center; justify-content: space-between; font-size: 13px; font-weight: bold; border-bottom: 1px solid rgba(0,0,0,0.1); z-index: 100;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+           <span style="font-size: 16px;">🔄</span>
+           <span>Update Available: A core update for the NodLync Extension is ready!</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+           <button id="dismissUpdateBtn" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; text-transform: uppercase;">Dismiss</button>
+           <button id="downloadUpdateBtn" style="background: white; border: none; color: #0ea5e9; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">Update Now</button>
+        </div>
+    </div>
 
     <!-- Filters Bar -->
     <div class="filters-bar">
@@ -128,7 +140,7 @@
                         </div>
                         
                         <div class="detail-actions" style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
-                            <button id="sendNodLyncBtn" class="btn-primary" style="padding: 8px 16px;">🚀 Use in NodLync API Tester</button>
+                            <button id="sendNodLyncBtn" class="btn-primary" style="padding: 8px 16px;">🚀 Capture</button>
                             <button id="authExtractBtn" class="btn-secondary">Smart Auth & Env</button>
                             <button id="copyCurl" class="btn-secondary">Copy cURL</button>
                             <button id="exportJson" class="btn-secondary">Export JSON</button>

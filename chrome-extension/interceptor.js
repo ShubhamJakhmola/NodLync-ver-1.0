@@ -7,7 +7,7 @@
         window.postMessage({
             type: 'NODLYNC_INTERCEPTED',
             payload
-        }, '*');
+        }, window.location.origin);
     }
 
     // Intercept Fetch

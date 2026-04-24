@@ -169,7 +169,7 @@ const ApiExplorerPanel = () => {
   };
 
   return (
-    <div className="glass-panel flex flex-col overflow-hidden">
+    <div className="glass-panel flex flex-col w-full min-h-0">
       <ModuleHeader
         title="Explore API"
         description="Import docs, pick endpoints, and generate a quick inspection workspace"
@@ -195,7 +195,7 @@ const ApiExplorerPanel = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-5">
+      <div className="px-5 py-5 h-full">
         {step === 1 ? (
           <div className="mx-auto max-w-4xl space-y-6">
             <div className="glass-panel p-6">

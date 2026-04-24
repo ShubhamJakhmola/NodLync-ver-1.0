@@ -13,14 +13,25 @@
 
         // Listen for messages from the interceptor in the page context
         window.addEventListener('message', (event) => {
-            if (event.source !== window || !event.data || event.data.type !== 'NODLYNC_INTERCEPTED') {
+            // Strict security: ensure sender is the current window and origin matches
+            if (event.source !== window || event.origin !== window.location.origin) {
                 return;
             }
-            
+
+            if (!event.data || event.data.type !== 'NODLYNC_INTERCEPTED') {
+                return;
+            }
+
+            // Protect against malformed payload injection
+            const payload = event.data.payload;
+            if (!payload || typeof payload !== 'object' || !payload.url || !payload.method) {
+                return;
+            }
+
             // Forward it to background script
             chrome.runtime.sendMessage({ 
                 type: 'CAPTURED_REQUEST', 
-                data: event.data.payload 
+                data: payload 
             });
         });
     } catch (e) {

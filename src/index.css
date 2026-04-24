@@ -163,3 +163,75 @@ html.light iframe,
 html.light svg {
   filter: none;
 }
+
+/* ===== RESPONSIVE & SECURITY UTILITIES ===== */
+
+/* Touch-friendly minimum sizes for all interactive elements */
+@media (pointer: coarse) {
+  button, a, input[type="checkbox"], select {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  input[type="checkbox"] {
+    min-width: 20px;
+    min-height: 20px;
+  }
+}
+
+/* Safe area for notched mobile devices (iPhone etc.) */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Responsive table container */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Secure credential field — prevents shoulder-surfing */
+.secure-input {
+  -webkit-text-security: disc;
+  font-family: monospace;
+  letter-spacing: 0.15em;
+}
+
+/* Prevent text selection on sensitive labels */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Hide content visually but keep it accessible to screen readers */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  border: 0;
+}
+
+/* Prevent copy/paste on sensitive fields */
+.no-copy {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Mobile-first stacking helper */
+@media (max-width: 1023px) {
+  .mobile-stack {
+    flex-direction: column !important;
+  }
+  .mobile-full {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .mobile-hide {
+    display: none !important;
+  }
+}
