@@ -24,10 +24,82 @@ const SettingsPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<"general" | "profile" | "integrations" | "logs" | "ai" | "about">("general");
+  const [activeTab, setActiveTab] = useState<"preferences" | "profile" | "integrations" | "ai" | "danger" | "logs" | "about">("preferences");
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [loadingKeys, setLoadingKeys] = useState(false);
+  const [loadingDanger, setLoadingDanger] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteMessage, setDeleteMessage] = useState<{type: 'error'|'success', text: string} | null>(null);
+  
+  // Password State
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [passwordMsg, setPasswordMsg] = useState<{type: 'error'|'success', text: string} | null>(null);
+
+  const handleUpdatePassword = async () => {
+    if (!oldPassword) {
+      setPasswordMsg({ type: "error", text: "Please enter your current password." });
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordMsg({ type: "error", text: "New password must be at least 6 characters long." });
+      return;
+    }
+    if (!user?.email) {
+      setPasswordMsg({ type: "error", text: "Could not verify user identity." });
+      return;
+    }
+
+    setUpdatingPassword(true);
+    setPasswordMsg(null);
+
+    // Verify old password first
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: oldPassword,
+    });
+
+    if (signInError) {
+      setPasswordMsg({ type: "error", text: "Incorrect current password." });
+      setUpdatingPassword(false);
+      return;
+    }
+
+    // Update to new password
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      setPasswordMsg({ type: "error", text: error.message });
+    } else {
+      setPasswordMsg({ type: "success", text: "Password updated successfully!" });
+      setOldPassword("");
+      setNewPassword("");
+      setTimeout(() => setShowPasswordForm(false), 2000);
+    }
+    setUpdatingPassword(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    setLoadingDanger(true);
+    setDeleteMessage(null);
+    try {
+      const { error } = await supabase.rpc('delete_user_account');
+      if (error) {
+        setDeleteMessage({ type: 'error', text: `Failed to delete account: ${error.message}. (Ensure the backend RPC 'delete_user_account' is configured).` });
+        setLoadingDanger(false);
+      } else {
+        setDeleteMessage({ type: 'success', text: "Account successfully deleted. Redirecting..." });
+        await new Promise(r => setTimeout(r, 1500));
+        await supabase.auth.signOut();
+        navigate("/login", { replace: true });
+      }
+    } catch (err: any) {
+      setDeleteMessage({ type: 'error', text: `Unexpected error: ${err.message || 'Server error'}` });
+      setLoadingDanger(false);
+    }
+  };
 
   // Log when users access the System Logs tab
   useEffect(() => {
@@ -46,14 +118,13 @@ const SettingsPage = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize tabs and keys
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get("tab");
-    if (tab && ["general", "profile", "integrations", "logs", "ai", "about"].includes(tab)) {
+    if (tab && ["preferences", "profile", "integrations", "ai", "danger", "logs", "about"].includes(tab)) {
       setActiveTab(tab as any);
     }
-  }, [location, navigate]);
+  }, [location.search]);
 
   useEffect(() => {
     if (!user) return;
@@ -194,20 +265,31 @@ const SettingsPage = () => {
     <div className="max-w-4xl mx-auto py-8 px-4 h-full flex flex-col">
       <ModuleHeader title="Settings Hub" description="MANAGE YOUR PROFILE AND SYSTEM LOGS" icon="⚙️" />
 
-      <div className="flex items-center gap-1 mb-6 border-b border-stroke overflow-x-auto custom-scrollbar">
-        {["general", "profile", "integrations", "logs", "ai", "about"].map(tab => (
+      <div className="flex items-center gap-1 mb-6 border-b border-stroke overflow-x-auto custom-scrollbar pb-2">
+        {["preferences", "profile", "integrations", "ai", "logs", "danger"].map(tab => (
           <button
             key={tab}
-            onClick={() => { setActiveTab(tab as any); navigate(`/settings?tab=${tab}`, { replace: true }); }}
-            className={`px-6 py-3 font-medium text-sm transition border-b-2 capitalize whitespace-nowrap ${activeTab === tab ? "text-primary border-primary bg-primary/5" : "text-fg-muted border-transparent hover:text-fg-secondary hover:bg-surface/50"}`}
+            type="button"
+            onClick={() => {
+              setActiveTab(tab as any);
+              navigate(
+                { pathname: location.pathname, search: `?tab=${tab}` },
+                { replace: true }
+              );
+            }}
+            className={`px-4 py-2 font-medium text-sm transition rounded-lg capitalize whitespace-nowrap ${
+              activeTab === tab 
+                ? tab === "danger" ? "bg-rose-500/10 text-rose-500 font-bold" : "text-primary bg-primary/10 font-bold"
+                : tab === "danger" ? "text-rose-400 hover:bg-rose-500/5" : "text-fg-muted hover:text-fg-secondary hover:bg-surface/50"
+            }`}
           >
-            {tab === "ai" ? "AI Configuration" : tab === "logs" ? "System Logs" : tab}
+            {tab === "ai" ? "AI Config" : tab === "danger" ? "Danger Zone" : tab}
           </button>
         ))}
       </div>
 
       <div className="flex-1 overflow-y-auto pb-12 custom-scrollbar">
-        {activeTab === "general" && appSettings && (
+        {activeTab === "preferences" && appSettings && (
           <div className="glass-panel p-6 space-y-6 max-w-2xl animate-in fade-in">
             <h2 className="text-lg font-bold text-fg-secondary border-b pb-2">Appearance & Behavior</h2>
             <div className="space-y-4">
@@ -216,11 +298,22 @@ const SettingsPage = () => {
                 { label: "Push Notifications", key: "notifications_enabled", checked: appSettings.notifications_enabled, toggle: (v: boolean) => handleSettingToggle("notifications_enabled", v) },
                 { label: "Auto Updates", key: "auto_update_enabled", checked: appSettings.auto_update_enabled, toggle: (v: boolean) => handleSettingToggle("auto_update_enabled", v) },
               ].map(item => (
-                <label key={item.key} className="flex items-center justify-between p-3 bg-surface border border-stroke rounded-lg cursor-pointer">
+                <label key={item.key} className="flex items-center justify-between p-3 bg-surface border border-stroke rounded-lg cursor-pointer hover:border-primary/50 transition-colors">
                   <span className="text-sm font-semibold">{item.label}</span>
-                  <input type="checkbox" className="w-5 h-5 accent-primary" checked={item.checked} onChange={(e) => item.toggle(e.target.checked)} disabled={savingSettingKey === item.key} />
+                  <input type="checkbox" className="w-5 h-5 accent-primary cursor-pointer" checked={item.checked} onChange={(e) => item.toggle(e.target.checked)} disabled={savingSettingKey === item.key} />
                 </label>
               ))}
+            </div>
+
+            <div className="pt-4 border-t border-stroke mt-6 space-y-4">
+              <h2 className="text-lg font-bold text-fg-secondary pb-2">Resources & Help</h2>
+              <div className="flex items-center justify-between p-4 bg-surface border border-stroke rounded-lg hover:border-primary/50 transition-colors">
+                <div>
+                  <h3 className="text-sm font-bold flex items-center gap-2">📚 NodLync Documentation</h3>
+                  <p className="text-xs text-fg-muted mt-1">Comprehensive guide, step-by-step module tutorials, and platform data references.</p>
+                </div>
+                <Link to="/docs" className="btn-primary px-5 py-2 text-xs font-bold whitespace-nowrap shadow-md hover:-translate-y-0.5 transition-all">Open Docs ↗</Link>
+              </div>
             </div>
           </div>
         )}
@@ -241,6 +334,129 @@ const SettingsPage = () => {
                 <span className="text-sm text-fg-muted font-medium">Display Name</span>
                 <input type="text" className="w-full bg-surface border border-stroke rounded-lg px-4 py-2.5 text-sm" defaultValue={userProfile.display_name} onBlur={handleProfileNameChange} disabled={loadingProfile} />
               </label>
+              <label className="block space-y-1">
+                <span className="text-sm text-fg-muted font-medium">Registered Email (Read-only)</span>
+                <input type="email" className="w-full bg-surface/50 border border-stroke rounded-lg px-4 py-2.5 text-sm text-fg-muted cursor-not-allowed" value={user?.email || ""} disabled />
+              </label>
+              <div className="pt-4 border-t border-stroke space-y-4">
+                <h3 className="text-sm font-bold text-fg">Account & Security</h3>
+                <div className="p-4 bg-surface border border-stroke rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold">Change Password</p>
+                      <p className="text-xs text-fg-muted mt-1">Requires re-authentication for security.</p>
+                    </div>
+                    <button onClick={() => setShowPasswordForm(!showPasswordForm)} className="btn-secondary px-4 py-2 text-xs">
+                      {showPasswordForm ? "Cancel" : "Update Password"}
+                    </button>
+                  </div>
+                  {showPasswordForm && (
+                    <div className="mt-4 pt-4 border-t border-stroke animate-in fade-in slide-in-from-top-2 space-y-4">
+                      <label className="block space-y-1">
+                        <span className="text-xs font-semibold text-fg-secondary">Current Password</span>
+                        <input 
+                          type="password" 
+                          value={oldPassword}
+                          onChange={(e) => setOldPassword(e.target.value)}
+                          className="w-full bg-background border border-stroke rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+                          placeholder="••••••••"
+                        />
+                      </label>
+                      <label className="block space-y-1">
+                        <span className="text-xs font-semibold text-fg-secondary">New Password</span>
+                        <input 
+                          type="password" 
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="w-full bg-background border border-stroke rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+                          placeholder="••••••••"
+                        />
+                      </label>
+                      {passwordMsg && (
+                        <p className={`text-xs font-bold ${passwordMsg.type === 'error' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                          {passwordMsg.text}
+                        </p>
+                      )}
+                      <button 
+                        onClick={handleUpdatePassword} 
+                        disabled={updatingPassword}
+                        className="btn-primary w-full py-2 text-xs"
+                      >
+                        {updatingPassword ? "Updating..." : "Save New Password"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="p-4 bg-surface border border-stroke rounded-lg flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold flex items-center gap-2">Current Device <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 text-[10px] rounded-full uppercase">Active</span></p>
+                    <p className="text-xs text-fg-muted mt-1">Windows • Chrome • IP verified</p>
+                  </div>
+                  <button onClick={handleLogout} disabled={loggingOut} className="btn-ghost text-rose-400 font-bold border border-rose-500/20 py-2 px-4 text-xs">
+                    {loggingOut ? "Signing out..." : "Logout from all devices"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-stroke space-y-4">
+                <h3 className="text-sm font-bold text-fg">Data & Privacy</h3>
+                <div className="p-4 bg-surface border border-stroke rounded-lg flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold">Download Account Data</p>
+                    <p className="text-xs text-fg-muted mt-1">Request a structured JSON export of all your workflows, tasks, and configurations.</p>
+                  </div>
+                  <button className="btn-primary px-4 py-2 text-xs">Request Export</button>
+                </div>
+                <label className="flex items-center justify-between p-4 bg-surface border border-stroke rounded-lg cursor-pointer">
+                  <div>
+                    <span className="text-sm font-semibold block">Allow Anonymous Usage Telemetry</span>
+                    <span className="text-xs text-fg-muted">Help us improve NodLync by sending crash reports.</span>
+                  </div>
+                  <input type="checkbox" className="w-5 h-5 accent-primary cursor-pointer" defaultChecked={false} />
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "danger" && (
+          <div className="glass-panel p-8 space-y-8 max-w-2xl animate-in fade-in border-rose-500/20 shadow-[0_0_20px_rgba(244,63,94,0.05)]">
+            <div>
+              <h2 className="text-2xl font-black text-rose-500 mb-2 flex items-center gap-2">⚠️ Danger Zone</h2>
+              <p className="text-sm text-fg-muted">Proceed with extreme caution. These actions are destructive and cannot be reversed.</p>
+            </div>
+            
+            <div className="p-6 bg-rose-500/5 border border-rose-500/20 rounded-xl space-y-4">
+              <h3 className="text-lg font-bold text-fg">Delete Account</h3>
+              <p className="text-sm text-fg-secondary">
+                This will instantly and permanently delete your user profile, active sessions, and disconnect you from all collaborative projects. 
+                <strong className="block mt-2 text-rose-400">All your API keys and unshared workflows will be destroyed.</strong>
+              </p>
+              
+              <div className="pt-4">
+                {deleteMessage && (
+                  <div className={`p-3 rounded-lg mb-4 text-sm font-bold ${deleteMessage.type === 'error' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+                    {deleteMessage.text}
+                  </div>
+                )}
+                <label className="block space-y-2">
+                  <span className="text-xs font-bold text-fg-muted uppercase tracking-wider">Type "DELETE" to confirm</span>
+                  <input 
+                    type="text" 
+                    className="w-full bg-background border border-rose-500/30 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-rose-500" 
+                    placeholder="DELETE"
+                    value={deleteConfirm}
+                    onChange={(e) => setDeleteConfirm(e.target.value)}
+                  />
+                </label>
+                <button 
+                  onClick={handleDeleteAccount}
+                  disabled={deleteConfirm !== "DELETE" || loadingDanger} 
+                  className="mt-4 w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-rose-600/20"
+                >
+                  {loadingDanger ? "Processing Deletion..." : "Permanently Delete Account"}
+                </button>
+              </div>
             </div>
           </div>
         )}

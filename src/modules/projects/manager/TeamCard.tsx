@@ -111,9 +111,9 @@ const TeamCard = ({
       };
       setDropdownPosition((current) =>
         current &&
-        current.top === next.top &&
-        current.left === next.left &&
-        current.width === next.width
+          current.top === next.top &&
+          current.left === next.left &&
+          current.width === next.width
           ? current
           : next
       );
@@ -216,57 +216,57 @@ const TeamCard = ({
   const dropdown =
     shouldShowDropdown && dropdownPosition
       ? createPortal(
-          <div
-            ref={dropdownRef}
-            className="fixed z-[80] rounded-2xl border border-stroke bg-panel shadow-2xl ring-1 ring-black/40"
-            style={{
-              top: dropdownPosition.top,
-              left: dropdownPosition.left,
-              width: dropdownPosition.width,
-            }}
-          >
-            <div className="max-h-60 overflow-y-auto p-2 custom-scrollbar">
-              {searching ? (
-                <div className="px-4 py-5 text-sm text-fg-muted flex items-center gap-3">
-                  <InlineSpinner compact />
-                  <span>Searching users...</span>
-                </div>
-              ) : searchError ? (
-                <div className="px-4 py-4 text-sm text-rose-300">{searchError}</div>
-              ) : hasEmptySearch ? (
-                <div className="px-4 py-4 text-sm text-fg-muted">No users found</div>
-              ) : (
-                searchResults.map((user) => (
-                  <button
-                    key={user.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedUser(user);
-                      setSearchQuery(user.display_name);
-                      setSearchResults([]);
-                      setSearchError(null);
-                    }}
-                    className="w-full rounded-xl px-4 py-3 text-left flex items-center justify-between gap-3 hover:bg-surface active:bg-surface transition-colors"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      {renderAvatar(user, "h-10 w-10", "text-sm")}
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-fg truncate">{user.display_name}</p>
-                        <p className="text-[11px] text-fg-muted truncate">
-                          {user.email || "Team member"}
-                        </p>
-                      </div>
+        <div
+          ref={dropdownRef}
+          className="fixed z-[80] rounded-2xl border border-stroke bg-panel shadow-2xl ring-1 ring-black/40"
+          style={{
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            width: dropdownPosition.width,
+          }}
+        >
+          <div className="max-h-60 overflow-y-auto p-2 custom-scrollbar">
+            {searching ? (
+              <div className="px-4 py-5 text-sm text-fg-muted flex items-center gap-3">
+                <InlineSpinner compact />
+                <span>Searching users...</span>
+              </div>
+            ) : searchError ? (
+              <div className="px-4 py-4 text-sm text-rose-300">{searchError}</div>
+            ) : hasEmptySearch ? (
+              <div className="px-4 py-4 text-sm text-fg-muted">No users found</div>
+            ) : (
+              searchResults.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedUser(user);
+                    setSearchQuery(user.display_name);
+                    setSearchResults([]);
+                    setSearchError(null);
+                  }}
+                  className="w-full rounded-xl px-4 py-3 text-left flex items-center justify-between gap-3 hover:bg-surface active:bg-surface transition-colors"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    {renderAvatar(user, "h-10 w-10", "text-sm")}
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-fg truncate">{user.display_name}</p>
+                      <p className="text-[11px] text-fg-muted truncate">
+                        {user.email || "Team member"}
+                      </p>
                     </div>
-                    <span className="text-[9px] px-2 py-1 bg-primary/10 text-primary border border-primary/20 rounded-lg font-black tracking-widest">
-                      SELECT
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>,
-          document.body
-        )
+                  </div>
+                  <span className="text-[9px] px-2 py-1 bg-primary/10 text-primary border border-primary/20 rounded-lg font-black tracking-widest">
+                    SELECT
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>,
+        document.body
+      )
       : null;
 
   const selectedUserPreview = selectedUser ? (
@@ -327,11 +327,10 @@ const TeamCard = ({
                       key={role}
                       type="button"
                       onClick={() => setSelectedRole(role)}
-                      className={`px-3 py-3 rounded-xl border-2 text-[10px] font-black transition uppercase tracking-widest ${
-                        selectedRole === role
+                      className={`px-3 py-3 rounded-xl border-2 text-[10px] font-black transition uppercase tracking-widest ${selectedRole === role
                           ? `${ROLE_STYLES[role]} border-primary/50 shadow-md scale-[1.02]`
                           : "bg-panel border-stroke text-fg-muted hover:border-stroke"
-                      }`}
+                        }`}
                     >
                       {role}
                     </button>
@@ -413,61 +412,61 @@ const TeamCard = ({
                   </p>
                   <ul className="divide-y divide-slate-800/50">
                     {pagination.paginatedItems.map((member) => (
-                        <li
-                          key={member.id}
-                          className="flex items-center gap-4 py-4 group hover:bg-surface/20 px-4 rounded-xl transition"
-                        >
-                          {renderAvatar(
-                            member,
-                            "w-10 h-10 group-hover:border-primary/40 transition shadow-xl",
-                            "text-sm"
+                      <li
+                        key={member.id}
+                        className="flex items-center gap-4 py-4 group hover:bg-surface/20 px-4 rounded-xl transition"
+                      >
+                        {renderAvatar(
+                          member,
+                          "w-10 h-10 group-hover:border-primary/40 transition shadow-xl",
+                          "text-sm"
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-fg-secondary truncate">{member.display_name}</p>
+                          <p className="text-[10px] text-fg-muted font-mono tracking-tighter truncate uppercase">
+                            {member.email || "Collaborator"}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                          {canManage ? (
+                            <select
+                              value={member.role}
+                              onChange={(event) =>
+                                handleRoleChange(member.id, event.target.value as ProjectRole)
+                              }
+                              className={`text-[10px] font-black border-2 rounded-xl px-3 py-2 bg-panel outline-none cursor-pointer hover:border-primary/40 transition uppercase tracking-widest ${ROLE_STYLES[member.role]}`}
+                            >
+                              {ROLE_OPTIONS.filter((role) => role !== "owner").map((role) => (
+                                <option
+                                  key={role}
+                                  value={role}
+                                  className="bg-panel text-fg-secondary font-bold"
+                                >
+                                  {role.toUpperCase()}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span
+                              className={`text-[10px] font-black border-2 rounded-xl px-4 py-2 uppercase tracking-widest ${ROLE_STYLES[member.role]}`}
+                            >
+                              {member.role.toUpperCase()}
+                            </span>
                           )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-fg-secondary truncate">{member.display_name}</p>
-                            <p className="text-[10px] text-fg-muted font-mono tracking-tighter truncate uppercase">
-                              {member.email || "Collaborator"}
-                            </p>
-                          </div>
 
-                          <div className="flex items-center gap-4">
-                            {canManage ? (
-                              <select
-                                value={member.role}
-                                onChange={(event) =>
-                                  handleRoleChange(member.id, event.target.value as ProjectRole)
-                                }
-                                className={`text-[10px] font-black border-2 rounded-xl px-3 py-2 bg-panel outline-none cursor-pointer hover:border-primary/40 transition uppercase tracking-widest ${ROLE_STYLES[member.role]}`}
-                              >
-                                {ROLE_OPTIONS.filter((role) => role !== "owner").map((role) => (
-                                  <option
-                                    key={role}
-                                    value={role}
-                                    className="bg-panel text-fg-secondary font-bold"
-                                  >
-                                    {role.toUpperCase()}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span
-                                className={`text-[10px] font-black border-2 rounded-xl px-4 py-2 uppercase tracking-widest ${ROLE_STYLES[member.role]}`}
-                              >
-                                {member.role.toUpperCase()}
-                              </span>
-                            )}
-
-                            {canManage && (
-                              <button
-                                onClick={() => handleRemove(member.id)}
-                                className="text-fg-muted hover:text-rose-400 p-2.5 bg-panel rounded-xl hover:bg-rose-500/10 transition opacity-0 group-hover:opacity-100 shadow-xl"
-                                title="Revoke Access"
-                              >
-                                Remove
-                              </button>
-                            )}
-                          </div>
-                        </li>
-                      ))}
+                          {canManage && (
+                            <button
+                              onClick={() => handleRemove(member.id)}
+                              className="text-fg-muted hover:text-rose-400 p-2.5 bg-panel rounded-xl hover:bg-rose-500/10 transition opacity-0 group-hover:opacity-100 shadow-xl"
+                              title="Revoke Access"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    ))}
                   </ul>
                 </>
               )}

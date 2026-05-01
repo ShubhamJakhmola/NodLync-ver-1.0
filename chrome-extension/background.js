@@ -52,4 +52,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             }
         });
     }
+
+    if (msg.type === 'PERF_METRICS') {
+        // Store latest perf metrics for dashboard (best-effort; do not block)
+        const tabId = sender?.tab?.id;
+        const payload = msg.data && typeof msg.data === 'object' ? msg.data : null;
+        if (!payload || !payload.metrics || typeof payload.metrics !== 'object') return;
+
+        const latestPerfMetrics = {
+            ttfb: payload.metrics.ttfb ?? null,
+            dcl: payload.metrics.dcl ?? null,
+            load: payload.metrics.load ?? null,
+            tbt: payload.metrics.tbt ?? null,
+            fcp: payload.metrics.fcp ?? null,
+            lcp: payload.metrics.lcp ?? null,
+            cls: payload.metrics.cls ?? null,
+
+            url: payload.url || sender?.tab?.url || null,
+            sessionId: payload.sessionId || null,
+            sessionType: payload.sessionType || null,
+            finalized: !!payload.finalized,
+            observedAt: payload.observedAt || null,
+            tabId: typeof tabId === 'number' ? tabId : null,
+        };
+
+        chrome.storage.local.set({ latestPerfMetrics });
+    }
 });

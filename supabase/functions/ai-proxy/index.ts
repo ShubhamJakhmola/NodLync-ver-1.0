@@ -346,6 +346,76 @@ serve(async (req) => {
       });
     }
 
+    // ================= GENERIC HTTP VIA VAULT KEY =================
+    if (action === "http") {
+      const { keyId, request } = body as any;
+      if (!keyId || !request || typeof request !== "object") return json({ error: "Invalid payload" }, 400);
+
+      const { data: keyRow, error } = await supabase
+        .from(vault.table)
+        .select("*")
+        .eq(vault.idCol, keyId)
+        .single();
+
+      if (error || !keyRow) return json({ error: "Key not found" }, 404);
+
+      const apiKey = await decrypt(String((keyRow as any)[vault.encryptedCol]), String((keyRow as any)[vault.ivCol]));
+
+      const url = String(request.url || "");
+      const method = String(request.method || "GET").toUpperCase();
+      if (!url.startsWith("http")) return json({ error: "Invalid request.url" }, 400);
+
+      const incomingHeaders = request.headers && typeof request.headers === "object" ? request.headers : {};
+      const headers: Record<string, string> = {};
+      for (const [k, v] of Object.entries(incomingHeaders)) {
+        if (typeof v === "string" && v.trim()) headers[String(k)] = v;
+      }
+
+      const auth = request.auth && typeof request.auth === "object" ? request.auth : { scheme: "bearer" };
+      const scheme = String(auth.scheme || "bearer").toLowerCase();
+      if (scheme === "bearer") {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      } else if (scheme === "header") {
+        const headerName = String(auth.headerName || "x-api-key");
+        headers[headerName] = apiKey;
+      } else if (scheme === "query") {
+        const param = String(auth.param || "api_key");
+        const u = new URL(url);
+        u.searchParams.set(param, apiKey);
+        (request as any).url = u.toString();
+      }
+
+      const bodyValue = request.body;
+      const hasBody = bodyValue !== undefined && bodyValue !== null && method !== "GET" && method !== "HEAD";
+      let fetchBody: string | undefined = undefined;
+
+      if (hasBody) {
+        if (typeof bodyValue === "string") {
+          fetchBody = bodyValue;
+        } else {
+          headers["Content-Type"] = headers["Content-Type"] || "application/json";
+          fetchBody = JSON.stringify(bodyValue);
+        }
+      }
+
+      const response = await fetch(String((request as any).url || url), { method, headers, body: fetchBody });
+      const contentType = response.headers.get("content-type") || "";
+      const text = await response.text();
+      const maybeJson = contentType.includes("application/json") ? (() => { try { return JSON.parse(text); } catch { return null; } })() : null;
+
+      if (!response.ok) {
+        return json({ error: text || response.statusText }, response.status);
+      }
+
+      return json({
+        data: {
+          status: response.status,
+          headers: Object.fromEntries(response.headers.entries()),
+          body: maybeJson ?? text,
+        },
+      });
+    }
+
     // ================= CHAT =================
     if (action !== "chat") return json({ error: `Unsupported action: ${action}` }, 400);
 

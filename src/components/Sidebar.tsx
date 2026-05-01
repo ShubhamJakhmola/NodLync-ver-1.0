@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import useAppStore from "../store/useAppStore";
 import { AiProactiveHints } from "./AiProactiveHints";
 
@@ -52,15 +52,15 @@ const Icons = {
 };
 
 const navItems = [
-  { to: "/", label: "Dashboard", Icon: Icons.Dashboard },
-  { to: "/projects", label: "Projects", Icon: Icons.Projects },
-  { to: "/my-stuff", label: "My Stuff", Icon: Icons.MyStuff },
-  { to: "/api-vault", label: "API Vault", Icon: Icons.ApiVault },
-  { to: "/api-tester", label: "API Tester", Icon: Icons.ApiTester },
-  { to: "/ai-playground", label: "AI Playground", Icon: Icons.AiPlayground },
-  { to: "/workflows", label: "Workflows", Icon: Icons.Workflows },
-  { to: "/meetings", label: "Meetings", Icon: Icons.Meetings },
-  { to: "/settings", label: "Settings", Icon: Icons.Settings },
+  { to: "/app", label: "Dashboard", Icon: Icons.Dashboard },
+  { to: "/app/projects", label: "Projects", Icon: Icons.Projects },
+  { to: "/app/my-stuff", label: "My Stuff", Icon: Icons.MyStuff },
+  { to: "/app/api-vault", label: "API Vault", Icon: Icons.ApiVault },
+  { to: "/app/api-tester", label: "API Tester", Icon: Icons.ApiTester },
+  { to: "/app/ai-playground", label: "AI Playground", Icon: Icons.AiPlayground },
+  { to: "/app/workflows", label: "Workflows", Icon: Icons.Workflows },
+  { to: "/app/meetings", label: "Meetings", Icon: Icons.Meetings },
+  { to: "/app/settings", label: "Settings", Icon: Icons.Settings },
 ];
 
 const Sidebar = ({ onClose }: { onClose?: () => void }) => {
@@ -72,10 +72,10 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
     const isMobile = window.innerWidth < 1024;
     
     // On mobile, force hierarchy: any sidebar nav should have Dashboard as its 'Back' parent
-    if (isMobile && to !== "/") {
+    if (isMobile && to !== "/app") {
       // First, effectively make the Dashboard the "entry point" in history
       // We use replace: true for the first step to avoid cluttering but ensure it's the base
-      navigate("/", { replace: false });
+      navigate("/app", { replace: false });
       // Then push the target
       setTimeout(() => {
         navigate(to);
@@ -90,7 +90,7 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
   return (
     <aside className="flex h-full w-72 flex-col gap-6 overflow-y-auto border-r border-stroke bg-surface p-6 custom-scrollbar sm:w-80 lg:w-64">
       <div className="flex items-center justify-between gap-4 px-2 lg:justify-start">
-        <div className="flex items-center gap-3">
+        <Link to="/" className="flex items-center gap-3" aria-label="Go to NodLync home">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center">
             <img
               src="/favicon.svg"
@@ -102,7 +102,7 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
             <p className="text-xl font-bold tracking-tight text-fg">NodLync</p>
             <p className="text-[10px] font-bold uppercase tracking-widest text-fg-muted">AI ops workspace</p>
           </div>
-        </div>
+        </Link>
         {onClose ? (
           <button
             type="button"
@@ -127,18 +127,20 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
                   }
                 }}
                 className={({ isActive }) =>
-                  `group flex items-center gap-3 rounded-xl border px-4 py-2.5 text-sm font-semibold transition duration-200 ${
+                  `group flex w-full min-w-0 items-center gap-3 overflow-hidden whitespace-nowrap rounded-xl border px-4 py-2.5 text-sm font-semibold transition duration-200 break-normal [overflow-wrap:normal] [word-break:normal] ${
                     isActive
                       ? "border-primary/20 bg-primary/10 text-primary shadow-[0_0_15px_rgba(56,189,248,0.1)]"
                       : "border-transparent text-fg-muted hover:bg-panel/80 hover:text-fg-secondary"
                   }`
                 }
-                end={item.to === "/"}
+                end={item.to === "/app"}
               >
-                <div className="transition-transform duration-200 group-hover:scale-110">
+                <div className="shrink-0 transition-transform duration-200 group-hover:scale-110">
                   <item.Icon />
                 </div>
-                <span>{item.label}</span>
+                <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap [overflow-wrap:normal] [word-break:normal]">
+                  {item.label}
+                </span>
               </NavLink>
             </li>
           ))}
@@ -151,7 +153,7 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
 
       <div
         onClick={() => {
-          navigate("/settings?tab=profile");
+          navigate("/app/settings?tab=profile");
           onClose?.();
         }}
         className="mt-6 flex cursor-pointer items-center gap-4 border-t border-stroke px-2 pt-6 group"

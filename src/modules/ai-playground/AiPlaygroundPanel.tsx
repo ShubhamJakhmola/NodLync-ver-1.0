@@ -212,7 +212,7 @@ const ModelSelector = ({
         setNvidiaModels([]);
         setLoading(false);
       }
-        return;
+      return;
     }
 
     void loadModels();
@@ -249,8 +249,8 @@ const ModelSelector = ({
     cfg?.id === "openrouter" && openRouterModels.length > 0
       ? openRouterModels
       : cfg?.id === "nvidia" && nvidiaModels.length > 0
-      ? nvidiaModels
-      : getModelOptions(cfg?.id ?? "openai");
+        ? nvidiaModels
+        : getModelOptions(cfg?.id ?? "openai");
 
   const options = sortModelsPreferFree(baseOptions);
   const selectedOption = options.find((option) => option.value === value);
@@ -264,9 +264,8 @@ const ModelSelector = ({
         <button
           type="button"
           onClick={() => !loading && setIsOpen((current) => !current)}
-          className={`flex min-w-0 items-center justify-between gap-3 rounded-lg border bg-surface px-2.5 py-1.5 text-xs transition ${
-            isOpen ? "border-primary" : "border-stroke"
-          } ${loading ? "cursor-wait text-fg-muted" : "text-fg-secondary"}`}
+          className={`flex min-w-0 items-center justify-between gap-3 rounded-lg border bg-surface px-2.5 py-1.5 text-xs transition ${isOpen ? "border-primary" : "border-stroke"
+            } ${loading ? "cursor-wait text-fg-muted" : "text-fg-secondary"}`}
           aria-haspopup="listbox"
           aria-expanded={isOpen}
           disabled={loading}
@@ -292,11 +291,10 @@ const ModelSelector = ({
                     onChange(option.value);
                     setIsOpen(false);
                   }}
-                  className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition ${
-                    option.value === value
+                  className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition ${option.value === value
                       ? "bg-primary/10 text-primary"
                       : "text-fg-secondary hover:bg-surface/70"
-                  }`}
+                    }`}
                   role="option"
                   aria-selected={option.value === value}
                 >
@@ -349,8 +347,8 @@ const MessageBubble = ({ msg }: { msg: ChatMessage }) => {
       )}
       <div
         className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words ${isUser
-            ? "bg-primary text-on-primary font-medium rounded-tr-sm"
-            : "bg-surface/80 text-fg-secondary border border-stroke/50 rounded-tl-sm"
+          ? "bg-primary text-on-primary font-medium rounded-tr-sm"
+          : "bg-surface/80 text-fg-secondary border border-stroke/50 rounded-tl-sm"
           }`}
       >
         {isMediaUrl ? (
@@ -484,8 +482,8 @@ const AiChatTab = ({
           mode === "chat"
             ? "You are a helpful AI assistant. Be concise and accurate."
             : mode === "image"
-            ? "You generate concise image prompts and return only the best prompt or generated media."
-            : "You create concise video concepts, storyboards, and shot lists.",
+              ? "You generate concise image prompts and return only the best prompt or generated media."
+              : "You create concise video concepts, storyboards, and shot lists.",
         mode,
       });
 
@@ -542,11 +540,10 @@ const AiChatTab = ({
               key={option.id}
               type="button"
               onClick={() => setMode(option.id as "chat" | "image" | "video")}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                mode === option.id
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${mode === option.id
                   ? "bg-primary text-on-primary"
                   : "text-fg-muted hover:text-fg-secondary"
-              }`}
+                }`}
             >
               {option.label}
             </button>
@@ -650,8 +647,8 @@ const AiChatTab = ({
               mode === "chat"
                 ? "Type a message..."
                 : mode === "image"
-                ? "Describe the image you want..."
-                : "Describe the video scene you want..."
+                  ? "Describe the image you want..."
+                  : "Describe the video scene you want..."
             }
             rows={1}
             disabled={loading}
@@ -979,8 +976,8 @@ Output format (EXACTLY):
           <button
             onClick={() => setViewingLiked((current) => !current)}
             className={`px-4 py-2.5 text-sm font-semibold rounded-lg border transition-colors ${viewingLiked
-                ? "border-primary text-primary bg-primary/10"
-                : "border-stroke text-fg-muted hover:text-fg-secondary bg-surface"
+              ? "border-primary text-primary bg-primary/10"
+              : "border-stroke text-fg-muted hover:text-fg-secondary bg-surface"
               }`}
           >
             Saved {likedIdeas.length > 0 ? likedIdeas.length : ""}
@@ -1038,8 +1035,8 @@ Output format (EXACTLY):
                     disabled={isLiked || isSaving}
                     title={isLiked ? "Saved" : "Save idea"}
                     className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm transition ${isLiked
-                        ? "text-rose-400 bg-rose-500/10 border border-rose-500/20"
-                        : "text-fg-muted hover:text-rose-400 hover:bg-rose-500/10 border border-transparent"
+                      ? "text-rose-400 bg-rose-500/10 border border-rose-500/20"
+                      : "text-fg-muted hover:text-rose-400 hover:bg-rose-500/10 border border-transparent"
                       } disabled:opacity-50`}
                   >
                     {isSaving ? <InlineSpinner compact /> : isLiked ? "Saved" : "Save"}
@@ -1553,19 +1550,19 @@ Synthesize these into ONE clear, comprehensive summary:
           }}
         />
         <div className="flex items-center gap-2">
-              <button
-                onClick={runAllColumns}
-                disabled={!research.prompt.trim() || anyLoading}
-                className="btn-primary flex-1 min-w-0 py-2.5 font-bold text-sm disabled:opacity-50"
-              >
-                {anyLoading ? (
+          <button
+            onClick={runAllColumns}
+            disabled={!research.prompt.trim() || anyLoading}
+            className="btn-primary flex-1 min-w-0 py-2.5 font-bold text-sm disabled:opacity-50"
+          >
+            {anyLoading ? (
               <span className="flex min-w-0 items-center justify-center gap-2 overflow-hidden whitespace-nowrap">
                 <InlineSpinner compact /> <span className="truncate">Running...</span>
               </span>
-                ) : (
-                  `Run Research across ${research.columns.length} AIs`
-                )}
-              </button>
+            ) : (
+              `Run Research across ${research.columns.length} AIs`
+            )}
+          </button>
           <button
             onClick={addColumn}
             disabled={research.columns.length >= 4}
@@ -1759,8 +1756,8 @@ const AiPlaygroundPanel = () => {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-t-lg border-b-2 -mb-px transition whitespace-nowrap ${activeTab === tab.id
-                  ? "border-primary text-primary bg-primary/5"
-                  : "border-transparent text-fg-muted hover:text-fg-secondary hover:bg-surface/30"
+                ? "border-primary text-primary bg-primary/5"
+                : "border-transparent text-fg-muted hover:text-fg-secondary hover:bg-surface/30"
                 }`}
             >
               {tab.label}

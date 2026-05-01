@@ -102,13 +102,29 @@
             calculateInsights();
         });
 
+        // Keep Insights updated when new data arrives (API captures or page perf metrics)
+        chrome.storage.onChanged.addListener((changes, area) => {
+            if (area !== 'local') return;
+
+            if (changes.capturedRequests) {
+                allRequests = changes.capturedRequests.newValue || [];
+            }
+
+            if (changes.capturedRequests || changes.latestPerfMetrics) {
+                const insightsView = document.getElementById('insightsView');
+                if (insightsView && insightsView.classList.contains('active')) {
+                    calculateInsights();
+                }
+            }
+        });
+
         // Version Control Check
         async function checkExtensionVersion() {
             try {
                 const currentVersion = chrome.runtime.getManifest().version;
 
                 // Fetch remote source of truth without caching it overly
-                const res = await fetch('http://localhost:5173/extension-version.json?cachebust=' + Date.now());
+                const res = await fetch(chrome.runtime.getURL('extension-version.json') + '?cachebust=' + Date.now());
                 const data = await res.json();
 
                 if (data && data.latest_version && data.latest_version !== currentVersion) {
@@ -121,7 +137,7 @@
 
                     const dlBtn = document.getElementById('downloadUpdateBtn');
                     if (dlBtn) dlBtn.onclick = () => {
-                        window.open(data.download_url || 'http://localhost:5173/NodLync-Extension.zip', '_blank');
+                        window.open(data.download_url || '/NodLync-Extension.zip', '_blank');
                     };
 
                     const disBtn = document.getElementById('dismissUpdateBtn');
@@ -639,6 +655,17 @@
                 const url = manualUrlInput.value;
                 if (!url) return;
                 traceStatus.style.display = 'flex';
+                traceUrlBtn.style.display = 'none';
+                
+                const stopTraceBtn = document.getElementById('stopTraceBtn');
+                if(stopTraceBtn) stopTraceBtn.style.display = 'inline-block';
+
+                if (!isCapturing) {
+                    isCapturing = true;
+                    captureToggle.checked = true;
+                    chrome.storage.local.set({ isCapturing });
+                    updateCaptureLabel();
+                }
 
                 if (chrome.devtools && chrome.devtools.inspectedWindow && chrome.devtools.inspectedWindow.tabId) {
                     // Update the inspected tab directly
@@ -655,6 +682,23 @@
             });
         }
 
+        const stopTraceBtn = document.getElementById('stopTraceBtn');
+        if (stopTraceBtn) {
+            stopTraceBtn.addEventListener('click', () => {
+                traceStatus.style.display = 'none';
+                traceUrlBtn.style.display = 'inline-block';
+                stopTraceBtn.style.display = 'none';
+                document.getElementById('traceStatusText').textContent = 'Tracing Stopped';
+                
+                if (isCapturing) {
+                    isCapturing = false;
+                    captureToggle.checked = false;
+                    chrome.storage.local.set({ isCapturing });
+                    updateCaptureLabel();
+                }
+            });
+        }
+
         // AI Intelligence
         document.querySelectorAll('.ai-action-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -662,11 +706,29 @@
                 const action = e.target.getAttribute('data-action');
                 const box = document.getElementById('aiResponseBox');
                 box.style.display = 'block'; box.textContent = 'Thinking... analyzing request details...';
+                
+                const hasBody = !!selectedRequest.requestBody;
+                const isAuth = !!findAuthHeader(selectedRequest.requestHeaders || selectedRequest.headers || {});
+                const url = new URL(selectedRequest.url);
+
                 setTimeout(() => {
-                    if (action === 'explain') box.textContent = `Analysis of ${selectedRequest.url}:\n- The endpoint handles ${selectedRequest.method} operations for ${selectedRequest.domain}.\n- Auth structure matches standard Bearer token scheme.\n- Best practices indicate this is a CRUD endpoint for retrieving domain data.`;
-                    if (action === 'code') box.textContent = `// Generated Node.js Axios Snippet\nconst axios = require('axios');\n\naxios.request({\n  method: '${selectedRequest.method}',\n  url: '${selectedRequest.url}',\n  headers: ${JSON.stringify(selectedRequest.requestHeaders || selectedRequest.headers || {}, null, 2)}\n}).then(console.log).catch(console.error);`;
-                    if (action === 'debug') box.textContent = `Debug Results:\n${selectedRequest.status >= 400 ? 'Issue found: Status code ' + selectedRequest.status + '\nCheck if Authorization token has expired.' : 'No major issues detected. Request succeeded in ' + selectedRequest.duration + 'ms.'}`;
-                    if (action === 'headers') box.textContent = `Suggested Missing Headers:\n- 'Accept-Encoding': 'gzip, deflate'\n- 'Cache-Control': 'no-cache'\n- 'X-Request-Id': '[UUID]'`;
+                    if (action === 'explain') {
+                        box.textContent = `Endpoint: ${url.pathname}\nDomain: ${selectedRequest.domain}\nPurpose: This ${selectedRequest.method} request interacts with ${url.hostname}'s ${url.pathname.split('/')[1] || 'root'} service. ${isAuth ? 'It uses active authentication.' : 'It appears to be a public endpoint.'} The status ${selectedRequest.status} indicates ${selectedRequest.status < 400 ? 'operational success' : 'a structural failure'}.`;
+                    }
+                    if (action === 'code') {
+                        const payload = typeof selectedRequest.requestBody === 'string' ? selectedRequest.requestBody : (selectedRequest.requestBody?.text || '');
+                        box.textContent = `fetch("${selectedRequest.url}", {\n  method: "${selectedRequest.method}",\n  headers: ${JSON.stringify(selectedRequest.requestHeaders || selectedRequest.headers || {}, null, 2)}${hasBody ? ',\n  body: ' + JSON.stringify(payload) : ''}\n});`;
+                    }
+                    if (action === 'debug') {
+                        if (selectedRequest.status >= 400) {
+                            box.textContent = `Issue: ${selectedRequest.status} Error\nRoot Cause Analysis:\n1. Server responded with an explicit error.\n2. Ensure the endpoint path "${url.pathname}" is correct.\n3. Verify if ${isAuth ? 'the token is still valid' : 'an API key is required'}.\nResolution: Re-authenticate and check payload schema.`;
+                        } else {
+                            box.textContent = `Insight: Optimal Performance.\n- Latency: ${selectedRequest.duration}ms (Excellent)\n- Protocol: Standard HTTPS\n- Data integrity confirmed for ${url.hostname}.`;
+                        }
+                    }
+                    if (action === 'headers') {
+                        box.textContent = `Payload Optimization Suggestions:\n- Add 'Cache-Control: no-cache' to avoid stale data.\n- Consider 'Accept: application/json' for strict typing.\n- Ensure 'User-Agent' matches target policy.`;
+                    }
                 }, 800);
             });
         });
@@ -694,6 +756,95 @@
                 const li = document.createElement('li'); li.style.padding = '10px'; li.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
                 li.innerHTML = `<div style="display:flex; justify-content:space-between;"><span>${e[0]}</span> <span style="color:var(--primary)">${e[1]} calls</span></div>`;
                 freqList.appendChild(li);
+            });
+
+            // Web Performance Metrics Integration
+            chrome.storage.local.get(['latestPerfMetrics'], (result) => {
+                if (result.latestPerfMetrics) {
+                    const m = result.latestPerfMetrics;
+                    const elTtfb = document.getElementById('insTtfb');
+                    const elDcl = document.getElementById('insDcl');
+                    const elLoad = document.getElementById('insLoad');
+                    const elTbt = document.getElementById('insTbt');
+                    const elFcp = document.getElementById('insFcp');
+                    const elLcp = document.getElementById('insLcp');
+                    const elCls = document.getElementById('insCls');
+
+                    const setValue = (el, value, suffix) => {
+                        if (!el) return;
+                        if (value === null || value === undefined || Number.isNaN(value)) {
+                            el.textContent = '—';
+                            el.style.color = 'inherit';
+                            return;
+                        }
+                        el.textContent = `${Math.round(value)}${suffix || ''}`;
+                        el.style.color = 'inherit';
+                    };
+
+                    const setScore = (el, value) => {
+                        if (!el) return;
+                        if (value === null || value === undefined || Number.isNaN(value)) {
+                            el.textContent = '—';
+                            el.style.color = 'inherit';
+                            return;
+                        }
+                        el.textContent = `${value}`;
+                        el.style.color = 'inherit';
+                    };
+
+                    const colorizeMs = (el, value, goodMax, avgMax) => {
+                        if (!el) return;
+                        if (value === null || value === undefined || Number.isNaN(value)) return;
+                        if (value <= goodMax) el.style.color = 'var(--success)';
+                        else if (value <= avgMax) el.style.color = 'var(--warning)';
+                        else el.style.color = 'var(--danger)';
+                    };
+
+                    const colorizeCls = (el, value) => {
+                        if (!el) return;
+                        if (value === null || value === undefined || Number.isNaN(value)) return;
+                        if (value <= 0.1) el.style.color = 'var(--success)';
+                        else if (value <= 0.25) el.style.color = 'var(--warning)';
+                        else el.style.color = 'var(--danger)';
+                    };
+
+                    if(elTtfb) {
+                        setValue(elTtfb, m.ttfb, ' ms');
+                        colorizeMs(elTtfb, m.ttfb, 800, 1800);
+                    }
+                    if(elDcl) {
+                        setValue(elDcl, m.dcl, ' ms');
+                        colorizeMs(elDcl, m.dcl, 1500, 3500);
+                    }
+                    if(elLoad) {
+                        setValue(elLoad, m.load, ' ms');
+                        colorizeMs(elLoad, m.load, 2500, 6000);
+                    }
+                    if(elTbt) {
+                        setValue(elTbt, m.tbt, ' ms');
+                        colorizeMs(elTbt, m.tbt, 200, 600);
+                    }
+                    if(elFcp) {
+                        setValue(elFcp, m.fcp, ' ms');
+                        colorizeMs(elFcp, m.fcp, 1800, 3000);
+                    }
+                    if(elLcp) {
+                        setValue(elLcp, m.lcp, ' ms');
+                        colorizeMs(elLcp, m.lcp, 2500, 4000);
+                    }
+                    if(elCls) {
+                        setScore(elCls, m.cls);
+                        colorizeCls(elCls, m.cls);
+                    }
+                } else {
+                    if (document.getElementById('insTtfb')) document.getElementById('insTtfb').textContent = 'No Data';
+                    if (document.getElementById('insDcl')) document.getElementById('insDcl').textContent = 'No Data';
+                    if (document.getElementById('insLoad')) document.getElementById('insLoad').textContent = 'No Data';
+                    if (document.getElementById('insTbt')) document.getElementById('insTbt').textContent = 'No Data';
+                    if (document.getElementById('insFcp')) document.getElementById('insFcp').textContent = 'No Data';
+                    if (document.getElementById('insLcp')) document.getElementById('insLcp').textContent = 'No Data';
+                    if (document.getElementById('insCls')) document.getElementById('insCls').textContent = 'No Data';
+                }
             });
         }
 

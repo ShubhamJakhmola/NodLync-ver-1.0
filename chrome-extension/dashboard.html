@@ -304,6 +304,41 @@
                     <div class="insight-value" id="insAvgTime">0 ms</div>
                 </div>
             </div>
+
+            <!-- Web Performance Metrics -->
+            <h2 style="margin-top: 40px;">Web Performance Metrics</h2>
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 24px; margin-top:24px;">
+                <div class="insight-card">
+                    <h4 title="Time until the first byte of the response is received from the server.">TTFB (Time to First Byte)</h4>
+                    <div class="insight-value" id="insTtfb">Pending...</div>
+                </div>
+                <div class="insight-card">
+                    <h4 title="When the initial HTML document has been completely loaded and parsed.">DCL (DOM Content Loaded)</h4>
+                    <div class="insight-value" id="insDcl">Pending...</div>
+                </div>
+                <div class="insight-card">
+                    <h4 title="When the window load event fires (page + dependent resources).">Load Event</h4>
+                    <div class="insight-value" id="insLoad">Pending...</div>
+                </div>
+                <div class="insight-card">
+                    <h4 title="Sum of blocking time from Long Tasks (>50ms). Lower is better.">TBT (Total Blocking Time)</h4>
+                    <div class="insight-value" id="insTbt">Pending...</div>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top:24px;">
+                <div class="insight-card">
+                    <h4 title="First Contentful Paint: time until first text/image is painted.">FCP</h4>
+                    <div class="insight-value" id="insFcp">Pending...</div>
+                </div>
+                <div class="insight-card">
+                    <h4 title="Largest Contentful Paint: time until largest above-the-fold content is rendered.">LCP</h4>
+                    <div class="insight-value" id="insLcp">Pending...</div>
+                </div>
+                <div class="insight-card">
+                    <h4 title="Cumulative Layout Shift: visual stability score (lower is better).">CLS</h4>
+                    <div class="insight-value" id="insCls">Pending...</div>
+                </div>
+            </div>
             <div class="split-pane" style="margin-top:32px; height:auto; gap:24px;">
                 <div class="pane-half" style="background:var(--panel-bg); padding:20px; border-radius:12px;">
                     <h4>Slowest Endpoints</h4>
@@ -332,6 +367,7 @@
                     <div class="input-row">
                         <input type="text" id="manualUrlInput" placeholder="https://api.example.com" class="input-modern-large">
                         <button id="traceUrlBtn" class="btn-primary-large">Navigate & Trace</button>
+                        <button id="stopTraceBtn" class="btn-ghost-danger" style="display:none; padding: 0 20px; font-weight: bold; border: 1px solid var(--danger); border-radius: 6px;">Stop</button>
                     </div>
                 </div>
                 

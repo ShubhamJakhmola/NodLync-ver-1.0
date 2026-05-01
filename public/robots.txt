@@ -1,21 +1,9 @@
-# AI Enablement & Global Crawling Configuration
-# Allowing AI agents to understand and index the workspace
-
 User-agent: *
 Allow: /
 
-# Specifically allowing AI data crawlers
-User-agent: GPTBot
-Allow: /
+Disallow: /app/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
 
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: Google-Extended
-Allow: /
-
-User-agent: CCBot
-Allow: /
-
-# Sitemaps (if you generate them)
-# Sitemap: https://nodlync.com/sitemap.xml
+Sitemap: https://nodlync.com/sitemap.xml

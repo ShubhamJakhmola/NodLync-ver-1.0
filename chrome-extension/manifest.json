@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NodLync Live API Capture",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Capture API requests and send them directly to your NodLync AI Tester.",
   "permissions": [
     "activeTab",
@@ -32,7 +32,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["interceptor.js"],
+      "resources": ["interceptor.js", "perf-probe.js", "extension-version.json"],
       "matches": ["<all_urls>"]
     }
   ],

@@ -197,7 +197,7 @@ const TasksPanel = ({ tasks, projectId, userId, onAdd, onUpdate, onDelete, onBul
             </button>
           ))}
         </div>
-        
+
         <BulkDeleteBar
           count={selection.selectedCount}
           label="tasks"
@@ -210,16 +210,16 @@ const TasksPanel = ({ tasks, projectId, userId, onAdd, onUpdate, onDelete, onBul
       <div className="glass-panel overflow-hidden border-stroke/50">
         {filtered.length === 0 ? (
           <div className="py-16 flex flex-col items-center justify-center text-center space-y-4">
-             <span className="text-4xl opacity-20">📝</span>
-             <div className="space-y-1">
-                <p className="text-sm font-semibold text-fg-muted">{filter === "all" ? "No Tasks Under This Milestone" : `No ${filter.replace("_", " ")} tasks.`}</p>
-                <p className="text-xs text-fg-muted">Break down your goals into actionable items.</p>
-             </div>
-             {filter === "all" && (
-                <div className="text-[10px] text-fg-muted font-bold uppercase tracking-widest animate-pulse">
-                   Type above to add your first task ➔
-                </div>
-             )}
+            <span className="text-4xl opacity-20">📝</span>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-fg-muted">{filter === "all" ? "No Tasks Under This Milestone" : `No ${filter.replace("_", " ")} tasks.`}</p>
+              <p className="text-xs text-fg-muted">Break down your goals into actionable items.</p>
+            </div>
+            {filter === "all" && (
+              <div className="text-[10px] text-fg-muted font-bold uppercase tracking-widest animate-pulse">
+                Type above to add your first task ➔
+              </div>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-slate-800/50">
@@ -246,7 +246,7 @@ const TasksPanel = ({ tasks, projectId, userId, onAdd, onUpdate, onDelete, onBul
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium transition-colors ${task.status === "done" ? "line-through text-fg-muted" : "text-fg-secondary"}`}>{task.title}</p>
                     <div className="flex items-center gap-2 mt-1">
-                       <span className="text-[10px] text-fg-muted font-mono">
+                      <span className="text-[10px] text-fg-muted font-mono">
                         {new Date(task.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       </span>
                       {task.deadline && (
@@ -256,7 +256,7 @@ const TasksPanel = ({ tasks, projectId, userId, onAdd, onUpdate, onDelete, onBul
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
                       <select
@@ -288,7 +288,7 @@ const TasksPanel = ({ tasks, projectId, userId, onAdd, onUpdate, onDelete, onBul
                     </div>
 
                     <button className="opacity-0 group-hover:opacity-100 text-fg-muted hover:text-rose-400 transition p-2 bg-surface/40 rounded-lg hover:bg-rose-500/10" onClick={() => onDelete(task.id)} title="Delete task">
-                       🗑️
+                      🗑️
                     </button>
                   </div>
                 </div>

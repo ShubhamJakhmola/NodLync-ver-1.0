@@ -29,21 +29,21 @@ interface Props {
 
 const ProjectTabs = ({ activeTab, onChange, taskCount }: Props) => {
   return (
-    <div className="flex items-center gap-1 border-b border-stroke px-1">
+    <div className="flex items-center gap-1 border-b border-stroke px-1 overflow-x-auto no-scrollbar">
       {TABS.map((tab) => {
         const isActive = tab.id === activeTab;
         return (
           <button
             key={tab.id}
             onClick={() => onChange(tab.id)}
-            className={`relative flex items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors
+            className={`relative shrink-0 flex items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap [overflow-wrap:normal] [word-break:normal]
               ${isActive
                 ? "text-primary"
                 : "text-fg-muted hover:text-fg-secondary"
               }`}
           >
             <span className="text-base leading-none">{tab.icon}</span>
-            {tab.label}
+            <span className="leading-none">{tab.label}</span>
             {tab.id === "tasks" && taskCount !== undefined && taskCount > 0 && (
               <span className="ml-1 text-[10px] bg-primary/20 text-primary border border-primary/30 rounded-full px-1.5 py-0.5 font-mono">
                 {taskCount}

@@ -41,11 +41,10 @@ const ProjectRow = ({
 
   return (
     <div
-      className={`group border-b border-stroke/30 transition-all duration-150 relative ${
-        selected
+      className={`group border-b border-stroke/30 transition-all duration-150 relative ${selected
           ? "bg-primary/10 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-primary z-10"
           : "hover:bg-surface/50"
-      }`}
+        }`}
     >
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 lg:gap-4 px-3 py-2">
         {/* Selection & Name Section */}
@@ -78,7 +77,7 @@ const ProjectRow = ({
           <div className="lg:w-28 shrink-0">
             <StatusBadge status={project.status} />
           </div>
-          
+
           <div className="flex flex-col items-end lg:items-start shrink-0 lg:w-24">
             <span className="text-[10px] font-bold text-fg-muted uppercase tracking-tighter">{formattedDate}</span>
             <span className="lg:hidden text-[9px] font-medium text-fg-muted/40 uppercase tracking-widest leading-none">Modified</span>

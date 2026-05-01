@@ -15,6 +15,32 @@ const LoginForm = () => {
   const setHasAgreedTerms = useAppStore((s) => s.setHasAgreedTerms);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+
+  const checkAndCreateProfile = async (userId: string, email: string, metadata: any) => {
+    try {
+      // Force token refresh to ensure JWT claims are entirely up to date before hitting RLS
+      await supabase.auth.refreshSession();
+
+      const { data, error } = await supabase.from('user_profiles').select('id, display_name').eq('id', userId).maybeSingle();
+      
+      const defaultName = metadata?.display_name || email.split('@')[0];
+
+      if (!data && !error) {
+        // Fallback profile creation using upsert to guarantee idempotency and avoid race conditions
+        await supabase.from('user_profiles').upsert(
+          { id: userId, display_name: defaultName }, 
+          { onConflict: 'id' }
+        );
+      } else if (data && data.display_name === "New User" && defaultName !== "New User") {
+        // Sync display name if it's still the default but we have better metadata
+        await supabase.from('user_profiles').update({ display_name: defaultName }).eq('id', userId);
+      }
+    } catch (err) {
+      console.error("Profile check failed", err);
+    }
+  };
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -24,15 +50,42 @@ const LoginForm = () => {
       return;
     }
 
+    if (lockoutUntil && Date.now() < lockoutUntil) {
+      const remaining = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      setError(`Too many attempts. Try again in ${remaining}s.`);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+
     if (error) {
-      setError(error.message);
+      // Brute force protection logic
+      const newAttempts = failedAttempts + 1;
+      setFailedAttempts(newAttempts);
+      
+      if (newAttempts >= 5) {
+        // Lockout for 30 seconds after 5 failed attempts
+        setLockoutUntil(Date.now() + 30000);
+        setError("Too many attempts. Try again in 30s.");
+      } else {
+        // Generic error regardless of whether email exists or bad password
+        setError("Invalid credentials. Please try again.");
+      }
     } else if (data.user) {
+      // Reset attempts
+      setFailedAttempts(0);
+      setLockoutUntil(null);
+
+      // Verify profile resilience
+      if (data.user.email) {
+        await checkAndCreateProfile(data.user.id, data.user.email, data.user.user_metadata);
+      }
+
       setUser(data.user);
       const redirect = (location.state as any)?.from?.pathname ?? "/projects";
       navigate(redirect, { replace: true });

@@ -34,6 +34,17 @@ export async function listWorkflows(folderId: string): Promise<ApiResponse<Workf
   return handleApiResponse<WorkflowsRow[]>(promise as any);
 }
 
+export async function listWorkflowsTaggedToUser(userId: string): Promise<ApiResponse<WorkflowsRow[]>> {
+  const promise = supabase
+    .from(TABLE)
+    .select(SELECT)
+    .eq("type", "workflow")
+    .filter("json_data->__nodlync->>userId", "eq", userId)
+    .order("created_at", { ascending: false });
+
+  return handleApiResponse<WorkflowsRow[]>(promise as any);
+}
+
 export async function folderNameExists(name: string): Promise<boolean> {
   const trimmed = name.trim();
   if (!trimmed) return false;
@@ -65,6 +76,24 @@ export async function createWorkflow(payload: {
     json_data: payload.json_data,
   };
   const promise = supabase.from(TABLE).insert(row).select(SELECT).single();
+  return handleApiResponse<WorkflowsRow>(promise as any);
+}
+
+export async function updateWorkflow(payload: {
+  id: string;
+  name?: string;
+  json_data?: any;
+}): Promise<ApiResponse<WorkflowsRow>> {
+  const patch: Record<string, unknown> = {};
+  if (typeof payload.name === "string") patch.name = payload.name.trim();
+  if (payload.json_data !== undefined) patch.json_data = payload.json_data;
+
+  const promise = supabase.from(TABLE).update(patch).eq("id", payload.id).select(SELECT).single();
+  return handleApiResponse<WorkflowsRow>(promise as any);
+}
+
+export async function getWorkflowRow(id: string): Promise<ApiResponse<WorkflowsRow>> {
+  const promise = supabase.from(TABLE).select(SELECT).eq("id", id).single();
   return handleApiResponse<WorkflowsRow>(promise as any);
 }
 

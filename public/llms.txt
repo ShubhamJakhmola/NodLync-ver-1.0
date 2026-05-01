@@ -1,0 +1,22 @@
+# NodLync
+
+NodLync is a developer performance monitoring tool for correlating API latency with frontend performance metrics (TTFB, DCL, TBT, LCP).
+
+## Key pages
+- https://nodlync.com/
+- https://nodlync.com/features
+- https://nodlync.com/docs
+- https://nodlync.com/docs/performance-metrics
+- https://nodlync.com/docs/api-monitoring
+- https://nodlync.com/docs/setup-guide
+- https://nodlync.com/docs/troubleshooting
+- https://nodlync.com/blog
+
+## Documentation
+- https://nodlync.com/docs/api-monitoring
+- https://nodlync.com/docs/performance-metrics
+- https://nodlync.com/docs/setup-guide
+- https://nodlync.com/docs/troubleshooting
+
+## Blog
+- https://nodlync.com/blog/why-api-fast-app-feels-slow

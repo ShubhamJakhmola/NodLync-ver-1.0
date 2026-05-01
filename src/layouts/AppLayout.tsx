@@ -18,14 +18,14 @@ const AppLayout = () => {
   // Seeds history so 'back' gesture from any leaf page on mobile returns to Dashboard
   useEffect(() => {
     const isMobile = window.innerWidth < 1024;
-    const isRoot = window.location.pathname === "/";
+    const isRoot = window.location.pathname === "/app";
     const hasSeeded = sessionStorage.getItem("history-seeded");
 
     if (isMobile && !isRoot && !hasSeeded) {
       const currentPath = window.location.pathname + window.location.search;
       // Replace current entry with / then push the actual page
       // This effectively puts Dashboard "behind" the current page in history
-      window.history.replaceState({ seeded: true }, "", "/");
+      window.history.replaceState({ seeded: true }, "", "/app");
       window.history.pushState({ seeded: true }, "", currentPath);
       sessionStorage.setItem("history-seeded", "true");
     }
@@ -54,8 +54,8 @@ const AppLayout = () => {
           });
           setGlobalsError(
             pRes.error?.message ??
-              sRes.error?.message ??
-              "Failed to load your workspace settings."
+            sRes.error?.message ??
+            "Failed to load your workspace settings."
           );
         }
         setUserProfile(pRes.data);
@@ -88,7 +88,7 @@ const AppLayout = () => {
     <div className="flex h-screen overflow-hidden bg-background text-fg">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
@@ -103,10 +103,10 @@ const AppLayout = () => {
         {/* Mobile Header with Toggle */}
         <header className="lg:hidden flex items-center justify-between px-6 py-4 border-b border-stroke bg-surface/50 backdrop-blur-md sticky top-0 z-30">
           <div className="flex items-center gap-3">
-             <img src="/favicon.svg" alt="Logo" className="w-8 h-8" />
-             <span className="font-bold tracking-tight">NodLync</span>
+            <img src="/favicon.svg" alt="Logo" className="w-8 h-8" />
+            <span className="font-bold tracking-tight">NodLync</span>
           </div>
-          <button 
+          <button
             onClick={() => setSidebarOpen(true)}
             className="p-2 hover:bg-panel rounded-lg text-fg-secondary"
             aria-label="Open menu"
