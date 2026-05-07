@@ -177,6 +177,76 @@ serve(async (req) => {
     const { action } = body ?? {};
     const vault = VAULT_SCHEMA;
 
+    // ================= STREAM PROXY (SSE) =================
+    // NOTE: `supabase.functions.invoke()` does not support streaming.
+    // The frontend must call the function endpoint directly via fetch to receive SSE.
+    if (action === "stream") {
+      const { keyId, request } = body as any;
+      if (!keyId || !request || typeof request !== "object") return json({ error: "Invalid payload" }, 400);
+
+      const { data: keyRow, error } = await supabase
+        .from(vault.table)
+        .select("*")
+        .eq(vault.idCol, keyId)
+        .single();
+      if (error || !keyRow) return json({ error: "Key not found" }, 404);
+
+      const apiKey = await decrypt(String((keyRow as any)[vault.encryptedCol]), String((keyRow as any)[vault.ivCol]));
+
+      const url = String(request.url || "");
+      const method = String(request.method || "POST").toUpperCase();
+      if (!url.startsWith("http")) return json({ error: "Invalid request.url" }, 400);
+
+      const incomingHeaders = request.headers && typeof request.headers === "object" ? request.headers : {};
+      const headers: Record<string, string> = {};
+      for (const [k, v] of Object.entries(incomingHeaders)) {
+        if (typeof v === "string" && v.trim()) headers[String(k)] = v;
+      }
+
+      const auth = request.auth && typeof request.auth === "object" ? request.auth : { scheme: "bearer" };
+      const scheme = String(auth.scheme || "bearer").toLowerCase();
+      let streamUrl = url;
+      if (scheme === "bearer") {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      } else if (scheme === "header") {
+        const headerName = String(auth.headerName || "x-api-key");
+        headers[headerName] = apiKey;
+      } else if (scheme === "query") {
+        const param = String(auth.param || "api_key");
+        const u = new URL(url);
+        u.searchParams.set(param, apiKey);
+        streamUrl = u.toString();
+      }
+
+      if (!headers["Content-Type"]) headers["Content-Type"] = "application/json";
+      if (!headers["Accept"]) headers["Accept"] = "text/event-stream";
+
+      const bodyValue = request.body;
+      const fetchBody =
+        bodyValue === undefined || bodyValue === null
+          ? undefined
+          : typeof bodyValue === "string"
+            ? bodyValue
+            : JSON.stringify(bodyValue);
+
+      const upstream = await fetch(streamUrl, { method, headers, body: fetchBody });
+      if (!upstream.ok) {
+        const err = await upstream.text();
+        return json({ error: err || upstream.statusText }, upstream.status);
+      }
+
+      const contentType = upstream.headers.get("content-type") || "text/event-stream";
+      return new Response(upstream.body, {
+        status: upstream.status,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": contentType,
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
     // ================= API VAULT =================
     if (action === "save-key") {
       const { name, provider, apiKey, description, tags } = body;

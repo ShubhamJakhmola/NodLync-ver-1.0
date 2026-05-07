@@ -10,15 +10,33 @@ import type {
 
 // Helper function to map AppLogsRow to LogEntry
 function mapAppLogsRowToLogEntry(row: AppLogsRow): LogEntry {
+  const detailsRaw = row.details || row["Details"] || "";
+  let parsedDetails: { message?: string; metadata?: Record<string, unknown>; source?: string } = {};
+  try {
+    const candidate = JSON.parse(detailsRaw);
+    if (candidate && typeof candidate === "object") {
+      parsedDetails = candidate as any;
+    }
+  } catch {
+    parsedDetails = { message: detailsRaw };
+  }
+
+  const actionRaw = row.action || row["Action"] || "";
+  const actionParts = actionRaw.split(":");
+  const module = actionParts[0] || "app";
+  const service = actionParts[1] || "app";
+  const source = (actionParts[2] as any) || parsedDetails.source || "frontend";
+
   return {
     id: row.id || row["Id"],
     timestamp: row.created_at || row["Timestamp"],
     level: mapStatusToLevel(row.status || row["Status"] || "info"),
-    module: extractModuleFromAction(row.action || row["Action"] || ""),
-    service: "app",
-    source: "frontend",
-    message: row.details || row["Details"] || "",
+    module,
+    service,
+    source,
+    message: parsedDetails.message || detailsRaw || "",
     metadata: {
+      ...(parsedDetails.metadata || {}),
       originalUser: row["User"],
       originalAction: row["Action"],
       originalStatus: row["Status"],
@@ -32,9 +50,15 @@ function mapAppLogsRowToLogEntry(row: AppLogsRow): LogEntry {
 function mapLogEntryToAppLogsRow(entry: LogEntry): Partial<AppLogsRow> {
   return {
     user_id: entry.userId,
-    action: `${entry.module}:${entry.service}`,
+    action: `${entry.module}:${entry.service}:${entry.source}`,
     status: mapLevelToStatus(entry.level),
-    details: entry.message,
+    details: JSON.stringify({
+      message: entry.message,
+      source: entry.source,
+      metadata: entry.metadata || {},
+      projectId: entry.projectId,
+      sessionId: entry.sessionId,
+    }),
   };
 }
 
@@ -186,6 +210,9 @@ export async function queryLogs(filter: LogFilter, options: LogPaginationOptions
   }
   if (filter.search) {
     query = query.or(`action.ilike.%${filter.search}%,details.ilike.%${filter.search}%`);
+  }
+  if (filter.searchQuery) {
+    query = query.or(`action.ilike.%${filter.searchQuery}%,details.ilike.%${filter.searchQuery}%`);
   }
   if (filter.startTime) {
     query = query.gte("created_at", filter.startTime.toISOString());

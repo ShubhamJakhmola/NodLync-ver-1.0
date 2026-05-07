@@ -284,7 +284,7 @@ interface SystemLogsPanelProps {
   userId?: string;
 }
 
-export default function SystemLogsPanel({}: SystemLogsPanelProps) {
+export default function SystemLogsPanel(_props: SystemLogsPanelProps) {
   const {
     filteredLogs,
     filter,
@@ -313,6 +313,7 @@ export default function SystemLogsPanel({}: SystemLogsPanelProps) {
   const user = useAppStore((s) => s.user);
   const [showJson, setShowJson] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const initializedRef = useRef(false);
   const logsContainerRef = useRef<HTMLDivElement>(null);
 
   // Subscribe to real-time logs
@@ -327,10 +328,19 @@ export default function SystemLogsPanel({}: SystemLogsPanelProps) {
   // Initial fetch
   useEffect(() => {
     if (user?.id) {
+      if (!initializedRef.current) {
+        initializedRef.current = true;
+        const now = Date.now();
+        setFilter({
+          startTime: new Date(now - 1000 * 60 * 60),
+          endTime: undefined,
+        });
+        if (!isLiveMode) toggleLiveMode();
+      }
       fetchLogs(user.id);
       fetchAvailableOptions(user.id);
     }
-  }, [user?.id, fetchLogs, fetchAvailableOptions]);
+  }, [user?.id, fetchLogs, fetchAvailableOptions, isLiveMode, setFilter, toggleLiveMode]);
 
   // Auto-refresh when live mode is on
   useEffect(() => {
@@ -340,7 +350,7 @@ export default function SystemLogsPanel({}: SystemLogsPanelProps) {
       if (user?.id) {
         refreshLogs(user.id);
       }
-    }, 5000);
+    }, 2000);
 
     return () => clearInterval(interval);
   }, [isLiveMode, user?.id, refreshLogs]);
@@ -363,7 +373,7 @@ export default function SystemLogsPanel({}: SystemLogsPanelProps) {
 
     setIsClearing(true);
     try {
-      await clearLogs(filter);
+      await clearLogs({ ...filter, userId: user.id });
       clearLocalLogs();
     } finally {
       setIsClearing(false);

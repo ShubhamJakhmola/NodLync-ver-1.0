@@ -187,8 +187,8 @@ const WorkflowsPanel = () => {
     ];
 
     try {
-      const content = await sendChatMessage({ apiItem, model: selectedModel, messages });
-      const parsed = JSON.parse(content);
+      const response = await sendChatMessage({ apiItem, model: selectedModel, messages });
+      const parsed = JSON.parse(response.text);
       if (!isWorkflowDefinition(parsed)) throw new Error("AI returned invalid workflow JSON.");
 
       const def: WorkflowDefinition = {

@@ -1,5 +1,20 @@
 import { supabase } from "./supabaseClient";
 import type { ApiVaultItem } from "./apiVaultApi";
+import {
+  dedupeModelOptions,
+  executeUniversalRequest,
+  buildStreamRequest,
+  type UniversalStreamEvent,
+  type PlaygroundMode,
+  type UniversalContentPart,
+  type UniversalError,
+  type UniversalResponse,
+} from "./aiOrchestration";
+import { invokeAiProxyStream } from "./aiProxyStream";
+import { parseSseStream } from "../ai/streams/sse";
+import { normalizeOpenAiCompatSse } from "../ai/streams/openaiCompat";
+export type { PlaygroundMode, UniversalContentPart, UniversalError, UniversalResponse } from "./aiOrchestration";
+export type { UniversalStreamEvent } from "./aiOrchestration";
 
 // ─── Provider registry (UI Only) ─────────────────────────────────────────────
 
@@ -109,6 +124,69 @@ export const PROVIDER_REGISTRY: ProviderConfig[] = [
     models: [
       { label: "OpenRouter Free", value: "openrouter/free" },
     ],
+  },
+  {
+    id: "xai",
+    label: "xAI / Grok",
+    keywords: ["xai", "x.ai", "grok"],
+    callStyle: "openai-compat",
+    baseUrl: "https://api.x.ai/v1",
+    defaultModel: "grok-2-latest",
+    models: [{ label: "Grok 2 Latest", value: "grok-2-latest" }],
+  },
+  {
+    id: "deepseek",
+    label: "DeepSeek",
+    keywords: ["deepseek"],
+    callStyle: "openai-compat",
+    baseUrl: "https://api.deepseek.com/v1",
+    defaultModel: "deepseek-chat",
+    models: [{ label: "DeepSeek Chat", value: "deepseek-chat" }],
+  },
+  {
+    id: "together",
+    label: "Together",
+    keywords: ["together"],
+    callStyle: "openai-compat",
+    baseUrl: "https://api.together.xyz/v1",
+    defaultModel: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    models: [{ label: "Llama 3.1 8B Turbo", value: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo" }],
+  },
+  {
+    id: "fireworks",
+    label: "Fireworks",
+    keywords: ["fireworks"],
+    callStyle: "openai-compat",
+    baseUrl: "https://api.fireworks.ai/inference/v1",
+    defaultModel: "accounts/fireworks/models/llama-v3p1-8b-instruct",
+    models: [{ label: "Llama v3.1 8B", value: "accounts/fireworks/models/llama-v3p1-8b-instruct" }],
+  },
+  {
+    id: "replicate",
+    label: "Replicate",
+    keywords: ["replicate"],
+    callStyle: "openai-compat",
+    baseUrl: "https://api.replicate.com/v1",
+    defaultModel: "black-forest-labs/flux-schnell",
+    models: [{ label: "FLUX Schnell", value: "black-forest-labs/flux-schnell", tags: ["IMG"] }],
+  },
+  {
+    id: "stability",
+    label: "Stability",
+    keywords: ["stability", "stable-diffusion"],
+    callStyle: "openai-compat",
+    baseUrl: "https://api.stability.ai",
+    defaultModel: "stable-image-core",
+    models: [{ label: "Stable Image Core", value: "stable-image-core", tags: ["IMG"] }],
+  },
+  {
+    id: "fal",
+    label: "Fal.ai",
+    keywords: ["fal", "fal.ai"],
+    callStyle: "openai-compat",
+    baseUrl: "https://fal.run",
+    defaultModel: "fal-ai/fast-sdxl",
+    models: [{ label: "Fast SDXL", value: "fal-ai/fast-sdxl", tags: ["IMG"] }],
   },
 ];
 
@@ -243,7 +321,10 @@ export function getDefaultModel(familyOrId: string): string {
 
 export function getModelOptions(familyOrId: string): ModelOption[] {
   const provider = PROVIDER_REGISTRY.find((c) => c.id === familyOrId);
-  return withModelTags(sortModelsPreferFree(provider?.models ?? FALLBACK_OPENAI_MODELS));
+  return dedupeModelOptions(
+    withModelTags(sortModelsPreferFree(provider?.models ?? FALLBACK_OPENAI_MODELS)),
+    familyOrId,
+  );
 }
 
 export function inferModelTags(model: Pick<ModelOption, "label" | "value">): string[] {
@@ -328,7 +409,7 @@ export function inferModelTags(model: Pick<ModelOption, "label" | "value">): str
 export function withModelTags(models: ModelOption[]): ModelOption[] {
   return models.map((model) => ({
     ...model,
-    tags: model.tags && model.tags.length > 0 ? model.tags : inferModelTags(model),
+    tags: Array.from(new Set((model.tags && model.tags.length > 0 ? model.tags : inferModelTags(model)).filter(Boolean))),
   }));
 }
 
@@ -343,10 +424,10 @@ export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
+  parts?: UniversalContentPart[];
+  raw?: unknown;
   timestamp: Date;
 }
-
-type PlaygroundMode = "chat" | "image" | "video";
 
 interface SendMessageOptions {
   apiItem: ApiVaultItem;
@@ -378,44 +459,133 @@ async function invokeAiProxy(body: Record<string, unknown>) {
   });
 
   if (error) {
-    const message = (error as any)?.context?.json?.error || (error as any)?.message || "Request failed.";
-    throw new Error(message);
+    const backendMessage =
+      (error as any)?.context?.json?.error ||
+      (error as any)?.context?.json?.message ||
+      (error as any)?.message ||
+      "Request failed.";
+    const err = new Error(backendMessage) as Error & {
+      universalError?: UniversalError;
+    };
+    err.universalError = {
+      kind: "backend",
+      message: backendMessage,
+      raw: error,
+    };
+    throw err;
   }
 
   return data;
 }
 
-export async function sendChatMessage(opts: SendMessageOptions): Promise<string> {
-  const { apiItem, model, messages, systemPrompt, baseUrl, mode = "chat" } = opts;
+export async function sendChatMessage(opts: SendMessageOptions): Promise<UniversalResponse> {
+  const { apiItem, model, messages, baseUrl, mode = "chat" } = opts;
   const provider = detectProvider(apiItem);
 
-  const action =
-    mode === "image" ? "generate-image" : mode === "video" ? "generate-video" : "chat";
+  try {
+    return await executeUniversalRequest(
+      {
+        apiItem,
+        provider,
+        model,
+        mode,
+        baseUrl: baseUrl || provider.baseUrl,
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      },
+      async (body) => {
+        const data = await invokeAiProxy(body);
+        if ((data as { error?: unknown })?.error) {
+          const message =
+            (data as { error?: { message?: string } | string }).error &&
+            typeof (data as { error?: { message?: string } | string }).error === "object"
+              ? ((data as { error?: { message?: string } }).error?.message ?? "Provider error.")
+              : ((data as { error?: string }).error ?? "Provider error.");
+          const err = new Error(message) as Error & { universalError?: UniversalError };
+          err.universalError = {
+            kind: "provider",
+            message,
+            provider: provider.id,
+            raw: data,
+          };
+          throw err;
+        }
+        return data;
+      },
+    );
+  } catch (error: any) {
+    if (error?.universalError) throw error;
+    const message = error?.message || "Request failed.";
+    const wrapped = new Error(message) as Error & { universalError?: UniversalError };
+    wrapped.universalError = {
+      kind: "frontend",
+      message,
+      provider: provider.id,
+      raw: error,
+    };
+    throw wrapped;
+  }
+}
 
-  const payload: Record<string, unknown> = {
-    action,
-    keyId: apiItem.id,
-    provider: provider.id,
-    messages: messages.map((m) => ({ role: m.role, content: m.content })),
+export async function streamChatMessage(
+  opts: SendMessageOptions,
+  streamOpts?: { signal?: AbortSignal },
+): Promise<{
+  debug: Record<string, unknown>;
+  stream: AsyncGenerator<UniversalStreamEvent>;
+}> {
+  const { apiItem, model, messages, baseUrl, mode = "chat" } = opts;
+  const provider = detectProvider(apiItem);
+
+  if (mode !== "chat") {
+    throw Object.assign(new Error("Streaming is only supported for chat mode right now."), {
+      universalError: {
+        kind: "unsupported",
+        message: "Streaming is only supported for chat mode right now.",
+        provider: provider.id,
+      } satisfies UniversalError,
+    });
+  }
+
+  const request = buildStreamRequest({
+    apiItem,
+    provider,
     model,
-    systemPrompt,
+    mode,
     baseUrl: baseUrl || provider.baseUrl,
-  };
+    messages: messages.map((m) => ({ role: m.role, content: m.content })),
+  });
 
-  if (mode === "image") {
-    payload.prompt = messages.map((message) => message.content).join("\n");
+  if (!request) {
+    throw Object.assign(new Error(`Streaming not supported for provider "${provider.id}".`), {
+      universalError: {
+        kind: "unsupported",
+        message: `Streaming not supported for provider "${provider.id}".`,
+        provider: provider.id,
+        debug: { provider: provider.id, model },
+      } satisfies UniversalError,
+    });
   }
-  if (mode === "video") {
-    payload.prompt = messages.map((message) => message.content).join("\n");
+
+  const res = await invokeAiProxyStream(request as any, { signal: streamOpts?.signal });
+  const contentType = res.headers.get("content-type") || "";
+  const body = res.body;
+  if (!body) throw new Error("Stream response has no body.");
+
+  async function* stream(): AsyncGenerator<UniversalStreamEvent> {
+    // OpenAI-compatible and Anthropic both use SSE. Gemini may also stream as SSE-like.
+    if (!contentType.includes("text/event-stream")) {
+      const text = await res.text().catch(() => "");
+      yield { type: "error", message: text || "Unsupported stream content-type.", raw: { contentType } };
+      return;
+    }
+
+    for await (const msg of parseSseStream(body as ReadableStream<Uint8Array>, { signal: streamOpts?.signal })) {
+      const normalized = normalizeOpenAiCompatSse(msg);
+      if (normalized) yield normalized;
+    }
   }
 
-  const data = await invokeAiProxy(payload);
-
-  if (data?.error) {
-    throw new Error(data.error || "Provider error.");
-  }
-
-  return data?.data || data?.url || data?.content || "(No response)";
+  return { debug: (request as any).debug ?? {}, stream: stream() };
 }
 
 export async function fetchOpenRouterModels(): Promise<ModelOption[]> {
@@ -423,9 +593,21 @@ export async function fetchOpenRouterModels(): Promise<ModelOption[]> {
     const res = await fetch("https://openrouter.ai/api/v1/models");
     if (!res.ok) throw new Error("Failed");
     const json = await res.json();
-    return withModelTags(json.data
-      .filter((m: any) => m.id.includes(":free"))
-      .map((m: any) => ({ label: m.name ?? m.id, value: m.id })));
+    return dedupeModelOptions(
+      withModelTags(
+      sortModelsPreferFree(
+        (json.data ?? []).map((m: any) => ({
+          label: m.name ?? m.id,
+          value: m.id,
+          tags: [
+            ...(String(m.id ?? "").includes(":free") ? ["FREE"] : []),
+            ...inferModelTags({ label: m.name ?? m.id, value: m.id }),
+          ].slice(0, 3),
+        })),
+      ),
+      ),
+      "openrouter",
+    );
   } catch {
     return withModelTags([{ label: "OpenRouter Free", value: "openrouter/free" }]);
   }
@@ -469,8 +651,11 @@ export async function fetchNvidiaModels(): Promise<ModelOption[]> {
       });
     }
 
-    return withModelTags(sortModelsPreferFree(models.length > 0 ? models : NVIDIA_FALLBACK_MODELS));
+    return dedupeModelOptions(
+      withModelTags(sortModelsPreferFree(models.length > 0 ? models : NVIDIA_FALLBACK_MODELS)),
+      "nvidia",
+    );
   } catch {
-    return withModelTags(sortModelsPreferFree(NVIDIA_FALLBACK_MODELS));
+    return dedupeModelOptions(withModelTags(sortModelsPreferFree(NVIDIA_FALLBACK_MODELS)), "nvidia");
   }
 }

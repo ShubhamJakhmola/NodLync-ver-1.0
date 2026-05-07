@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { getApiVaultItems, type ApiVaultItem } from "../../api/apiVaultApi";
 import {
   detectProvider,
@@ -7,9 +9,12 @@ import {
   getDefaultModel,
   getModelOptions,
   sendChatMessage,
+  streamChatMessage,
   sortModelsPreferFree,
   type ChatMessage,
   type ModelOption,
+  type UniversalContentPart,
+  type UniversalStreamEvent,
 } from "../../api/aiPlaygroundApi";
 import {
   deleteLikedIdea,
@@ -336,7 +341,43 @@ const ModelSelector = ({
 const MessageBubble = ({ msg }: { msg: ChatMessage }) => {
   const isUser = msg.role === "user";
   const content = isUser ? msg.content : normalizeGeneratedText(msg.content);
-  const isMediaUrl = !isUser && /^(https?:\/\/|data:image\/)/i.test(content.trim());
+  const parts: UniversalContentPart[] =
+    !isUser && msg.parts?.length ? msg.parts : [{ type: "markdown", text: content }];
+
+  const renderPart = (part: UniversalContentPart, index: number) => {
+    if ((part.type === "markdown" || part.type === "text" || part.type === "reasoning") && part.text) {
+      return (
+        <div key={`${part.type}-${index}`} className="prose prose-invert prose-sm max-w-none">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{part.text}</ReactMarkdown>
+        </div>
+      );
+    }
+    if (part.type === "code" && part.text) {
+      return (
+        <pre key={`${part.type}-${index}`} className="overflow-x-auto rounded-lg border border-stroke bg-background/70 p-3 text-xs">
+          <code>{part.text}</code>
+        </pre>
+      );
+    }
+    if (part.type === "image" && (part.url || part.data)) {
+      const src = part.url ?? `data:${part.mimeType ?? "image/png"};base64,${part.data}`;
+      return <img key={`${part.type}-${index}`} src={src} alt="Generated result" className="max-w-full rounded-xl border border-stroke" />;
+    }
+    if (part.type === "video" && part.url) {
+      return <video key={`${part.type}-${index}`} controls className="max-w-full rounded-xl border border-stroke" src={part.url} />;
+    }
+    if (part.type === "audio" && part.url) {
+      return <audio key={`${part.type}-${index}`} controls className="w-full" src={part.url} />;
+    }
+    if (part.url) {
+      return (
+        <a key={`${part.type}-${index}`} href={part.url} target="_blank" rel="noreferrer" className="block text-xs text-primary hover:underline break-all">
+          {part.url}
+        </a>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} gap-2`}>
@@ -351,16 +392,7 @@ const MessageBubble = ({ msg }: { msg: ChatMessage }) => {
           : "bg-surface/80 text-fg-secondary border border-stroke/50 rounded-tl-sm"
           }`}
       >
-        {isMediaUrl ? (
-          <div className="space-y-3">
-            <img src={content.trim()} alt="Generated result" className="max-w-full rounded-xl border border-stroke" />
-            <a href={content.trim()} target="_blank" rel="noreferrer" className="block text-xs text-primary hover:underline break-all">
-              Open generated media
-            </a>
-          </div>
-        ) : (
-          content
-        )}
+        {isUser ? content : <div className="space-y-3">{parts.map(renderPart)}</div>}
       </div>
       {isUser && (
         <div className="flex-shrink-0 w-7 h-7 rounded-full bg-surface border border-stroke-strong flex items-center justify-center text-xs text-fg-secondary font-bold mt-0.5">
@@ -399,6 +431,7 @@ const AiChatTab = ({
   const setChat = usePlaygroundStore((state) => state.setChat);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"chat" | "image" | "video">("chat");
+  const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -472,32 +505,94 @@ const AiChatTab = ({
       error: null,
     });
     setLoading(true);
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
 
     try {
-      const reply = await sendChatMessage({
-        apiItem: selectedApi,
-        model: chat.model,
-        messages: nextMessages,
-        systemPrompt:
-          mode === "chat"
-            ? "You are a helpful AI assistant. Be concise and accurate."
-            : mode === "image"
+      if (mode === "chat") {
+        const assistantId = genId();
+        setChat({
+          messages: [
+            ...nextMessages,
+            {
+              id: assistantId,
+              role: "assistant",
+              content: "",
+              parts: [{ type: "markdown", text: "" }],
+              raw: null,
+              timestamp: new Date(),
+            },
+          ],
+        });
+
+        const { debug, stream } = await streamChatMessage(
+          {
+            apiItem: selectedApi,
+            model: chat.model,
+            messages: nextMessages,
+            mode,
+          },
+          { signal: abortRef.current.signal },
+        );
+
+        let acc = "";
+        let lastMeta: UniversalStreamEvent | null = null;
+        for await (const event of stream) {
+          if (event.type === "delta") {
+            acc += event.textDelta;
+            const next = usePlaygroundStore.getState().chat.messages.map((m) =>
+              m.id === assistantId
+                ? { ...m, content: acc, parts: [{ type: "markdown", text: acc }] as UniversalContentPart[] }
+                : m,
+            );
+            setChat({ messages: next });
+          } else if (event.type === "meta") {
+            lastMeta = event;
+          } else if (event.type === "error") {
+            throw Object.assign(new Error(event.message), {
+              universalError: {
+                kind: "provider",
+                message: event.message,
+                provider: cfg?.id ?? null,
+                raw: event.raw,
+                debug,
+              },
+            });
+          } else if (event.type === "done") {
+            break;
+          }
+        }
+
+        const finalMessages = usePlaygroundStore.getState().chat.messages.map((m) =>
+          m.id === assistantId ? { ...m, raw: { debug, lastMeta } } : m,
+        );
+        setChat({ messages: finalMessages });
+      } else {
+        const response = await sendChatMessage({
+          apiItem: selectedApi,
+          model: chat.model,
+          messages: nextMessages,
+          systemPrompt:
+            mode === "image"
               ? "You generate concise image prompts and return only the best prompt or generated media."
               : "You create concise video concepts, storyboards, and shot lists.",
-        mode,
-      });
+          mode,
+        });
 
-      setChat({
-        messages: [
-          ...nextMessages,
-          {
-            id: genId(),
-            role: "assistant",
-            content: normalizeGeneratedText(reply),
-            timestamp: new Date(),
-          },
-        ],
-      });
+        setChat({
+          messages: [
+            ...nextMessages,
+            {
+              id: genId(),
+              role: "assistant",
+              content: normalizeGeneratedText(response.text),
+              parts: response.parts,
+              raw: response.raw,
+              timestamp: new Date(),
+            },
+          ],
+        });
+      }
 
       void logAppEvent({
         type: "success",
@@ -510,11 +605,13 @@ const AiChatTab = ({
         },
       });
     } catch (error: any) {
-      setChat({ error: error?.message ?? "Request failed. Check your API key." });
+      const detail = error?.universalError;
+      const errorText = detail ? `[${detail.kind}] ${detail.message}` : (error?.message ?? "Request failed. Check your API key.");
+      setChat({ error: errorText });
       void logAppEvent({
         type: "error",
         module: "ai-playground.chat",
-        message: error?.message ?? "Chat request failed.",
+        message: errorText,
         projectId: useAppStore.getState().selectedProject?.id ?? undefined,
         meta: {
           model: chat.model,
@@ -525,6 +622,12 @@ const AiChatTab = ({
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 80);
     }
+  }
+
+  function cancel() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setLoading(false);
   }
 
   return (
@@ -666,6 +769,16 @@ const AiChatTab = ({
           >
             {loading ? <InlineSpinner compact /> : "➤"}
           </button>
+          {loading && mode === "chat" && (
+            <button
+              onClick={cancel}
+              className="flex-shrink-0 w-9 h-9 border border-stroke rounded-lg flex items-center justify-center text-xs text-fg-muted hover:text-rose-300 hover:border-rose-500/40 transition"
+              title="Cancel"
+              type="button"
+            >
+              ■
+            </button>
+          )}
         </div>
         <p className="text-[10px] text-fg-muted mt-1 text-right">
           {chat.messages.filter((message) => message.role === "user").length} turns ·{" "}
@@ -830,16 +943,16 @@ Output format (EXACTLY):
 5. [Title]: [1-2 sentence description]`;
 
     try {
-      const reply = await sendChatMessage({
+      const response = await sendChatMessage({
         apiItem: selectedApi,
         model: ideasState.model,
         messages: [{ id: genId(), role: "user", content: prompt, timestamp: new Date() }],
       });
-      const parsed = parseIdeas(reply);
+      const parsed = parseIdeas(response.text);
       setIdeas({
         ideas: parsed.length
           ? parsed
-          : [{ id: genId(), title: "Raw Output", description: reply }],
+          : [{ id: genId(), title: "Raw Output", description: response.text }],
       });
       void logAppEvent({
         type: "success",
@@ -1382,7 +1495,7 @@ const ResearchTab = ({
 
       updateColumn(id, {
         status: "success",
-        response: normalizeGeneratedText(response),
+        response: normalizeGeneratedText(response.text),
         error: null,
       });
 
@@ -1477,7 +1590,7 @@ Synthesize these into ONE clear, comprehensive summary:
           },
         ],
       });
-      setResearch({ summary: normalizeGeneratedText(summary) });
+      setResearch({ summary: normalizeGeneratedText(summary.text) });
     } catch (error: any) {
       setResearch({ summaryError: error?.message ?? "Summary generation failed." });
     } finally {
