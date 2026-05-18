@@ -42,7 +42,7 @@ CLAUDE.md
 .agent-mem/
 .agents/
 .cursor/
-NodLync-Extension.zip
+
 secrets_payload.json
 tsc_error.txt
 tsc_errors.txt

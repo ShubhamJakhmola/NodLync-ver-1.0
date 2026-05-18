@@ -734,7 +734,7 @@ function parseIdeas(raw: string): PlaygroundIdeaItem[] {
       .slice(1)
       .join(" ")
       .replace(/\*\*/g, "")
-      .replace(/^[-:\s]+/, "")
+      .replace(/^[\s:-]+/, "")
       .trim();
 
     if (title.length > 3) {
