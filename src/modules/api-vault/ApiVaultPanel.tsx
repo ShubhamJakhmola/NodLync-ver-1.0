@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+  import { useEffect, useMemo, useState } from "react";
 import {
   createApiVaultItem,
   deleteApiVaultItem,
   getApiVaultItems,
   revealApiVaultItem,
+  updateApiVaultMetadata,
   type ApiVaultItem,
 } from "../../api/apiVaultApi";
+import { introspectProvider } from "../../api/aiProviderIntrospector";
 import { logAppEvent } from "../../utils/appLogger";
 import BulkDeleteBar from "../../components/BulkDeleteBar";
 import InlineSpinner from "../../components/InlineSpinner";
@@ -33,6 +35,7 @@ const ApiVaultPanel = () => {
   const [tagFilter, setTagFilter] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [savePopupMessage, setSavePopupMessage] = useState<string | null>(null);
+  const [probingIds, setProbingIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user) {
@@ -97,6 +100,7 @@ const ApiVaultPanel = () => {
         key_name: values.name,
         provider: values.provider,
         apiKey: values.apiKey,
+        baseUrl: values.baseUrl,
         description: values.description,
         tags: values.tags,
       });
@@ -188,6 +192,41 @@ const ApiVaultPanel = () => {
     setBulkDeleting(false);
   };
 
+  const handleIntrospect = async (item: ApiVaultItem) => {
+    if (probingIds.has(item.id)) return;
+    
+    setProbingIds((prev) => new Set(prev).add(item.id));
+    setErrorMessage(null);
+    
+    try {
+      const result = await introspectProvider(item, item.baseUrl);
+      
+      // Update local state and DB
+      const updatedMetadata = {
+        ...item.metadata,
+        baseUrl: result.baseUrl,
+        isOpenAiCompatible: result.isOpenAiCompatible,
+        capabilities: result.capabilities,
+        discoveredModels: result.discoveredModels,
+        discoveredAt: new Date().toISOString(),
+      };
+
+      const { error } = await updateApiVaultMetadata(item.id, updatedMetadata);
+      if (error) throw error;
+
+      setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, metadata: updatedMetadata, baseUrl: result.baseUrl } : i));
+      setSavePopupMessage(`Introspection complete for "${item.key_name}". Found ${result.capabilities.length} capabilities.`);
+    } catch (err: any) {
+      setErrorMessage(`Introspection failed: ${err.message || "Unknown error"}`);
+    } finally {
+      setProbingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  };
+
   return (
     <>
       <div className="space-y-6">
@@ -264,20 +303,22 @@ const ApiVaultPanel = () => {
               </p>
             </div>
           ) : (
-            <ApiVaultTable
-              items={pagination.paginatedItems}
-              decryptedKeys={decryptedKeys}
-              visibleIds={new Set(visibleIds)}
-              selectedIds={selection.selectedIds}
-              allSelected={pageState.checked}
-              indeterminate={pageState.indeterminate}
-              copiedId={copiedId}
-              onToggleAll={() => selection.togglePage(pagination.paginatedItems)}
-              onToggleSelect={selection.toggleOne}
-              onToggleReveal={handleToggleReveal}
-              onCopy={handleCopy}
-              onDelete={handleDelete}
-            />
+              <ApiVaultTable
+                items={pagination.paginatedItems}
+                decryptedKeys={decryptedKeys}
+                visibleIds={new Set(visibleIds)}
+                selectedIds={selection.selectedIds}
+                probingIds={probingIds}
+                allSelected={pageState.checked}
+                indeterminate={pageState.indeterminate}
+                copiedId={copiedId}
+                onToggleAll={() => selection.togglePage(pagination.paginatedItems)}
+                onToggleSelect={selection.toggleOne}
+                onToggleReveal={handleToggleReveal}
+                onCopy={handleCopy}
+                onDelete={handleDelete}
+                onIntrospect={handleIntrospect}
+              />
           )}
 
           {filteredItems.length > 0 ? (

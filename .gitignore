@@ -25,3 +25,25 @@ build/
 *.njsproj
 *.sln
 *.sw?
+
+# Auto-generated agent rules (personalized per developer)
+.brainsync/agent-rules.md
+
+# Auto-generated AI agent exclusions
+.cursorrules
+.clineRules
+.agent/
+.windsurfrules
+.gemini/
+.cline/
+
+AGENT.md
+CLAUDE.md
+.agent-mem/
+.agents/
+.cursor/
+NodLync-Extension.zip
+secrets_payload.json
+tsc_error.txt
+tsc_errors.txt
+tsc_errors_utf8.txt

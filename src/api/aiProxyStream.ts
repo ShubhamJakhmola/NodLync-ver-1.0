@@ -17,8 +17,7 @@ export async function invokeAiProxyStream(body: Record<string, unknown>, opts?: 
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      apikey: anonKey,
-      "x-user-jwt": session.access_token,
+      Authorization: `Bearer ${session.access_token}`,
     },
     body: JSON.stringify(body),
     signal: opts?.signal,

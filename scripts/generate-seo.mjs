@@ -6,12 +6,13 @@ const projectRoot = process.cwd();
 const siteUrl =
   process.env.SITE_URL ||
   process.env.VITE_SITE_URL ||
-  "https://nodlync.com";
+  "https://nodlync.netlify.app";
 
 const publicDir = path.join(projectRoot, "public");
 const contentDir = path.join(projectRoot, "src", "content");
 const docsDir = path.join(contentDir, "docs");
 const blogDir = path.join(contentDir, "blog");
+const docsKnowledgeFile = path.join(contentDir, "docsKnowledge.ts");
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -35,6 +36,24 @@ function listMarkdownRoutes(rootDir, urlPrefix) {
   };
 
   walk(rootDir);
+  return routes;
+}
+
+function listKnowledgeDocRoutes(filePath) {
+  if (!fs.existsSync(filePath)) return [];
+  const source = fs.readFileSync(filePath, "utf8");
+  const routes = [];
+  const seen = new Set();
+  const re = /slug:\s*"([^"]+)"/g;
+  let match;
+
+  while ((match = re.exec(source))) {
+    const slug = match[1].trim();
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    routes.push(`/docs/${slug}`);
+  }
+
   return routes;
 }
 
@@ -102,9 +121,10 @@ function buildLlmsTxt(indexableUrls) {
     "/",
     "/features",
     "/docs",
-    "/docs/performance-metrics",
-    "/docs/api-monitoring",
-    "/docs/setup-guide",
+    "/docs/getting-started",
+    "/docs/beginner-guide",
+    "/docs/ai-providers",
+    "/docs/extension-guide",
     "/docs/troubleshooting",
     "/blog",
   ].filter((u) => indexableUrls.includes(u));
@@ -117,7 +137,7 @@ function buildLlmsTxt(indexableUrls) {
   return [
     "# NodLync",
     "",
-    "NodLync is a developer performance monitoring tool for correlating API latency with frontend performance metrics (TTFB, DCL, TBT, LCP).",
+    "NodLync is an AI workspace and knowledge platform for projects, workflows, providers, model testing, collaboration, traffic capture, and debugging.",
     "",
     "## Key pages",
     ...toLinks(core),
@@ -134,14 +154,14 @@ function buildLlmsTxt(indexableUrls) {
 ensureDir(publicDir);
 
 const docsRoutes = listMarkdownRoutes(docsDir, "/docs");
+const knowledgeDocsRoutes = listKnowledgeDocRoutes(docsKnowledgeFile);
 const blogRoutes = listMarkdownRoutes(blogDir, "/blog");
 
 const staticIndexable = ["/", "/features", "/docs", "/blog", "/privacy", "/terms"];
-const urls = Array.from(new Set([...staticIndexable, ...docsRoutes, ...blogRoutes])).sort();
+const urls = Array.from(new Set([...staticIndexable, ...docsRoutes, ...knowledgeDocsRoutes, ...blogRoutes])).sort();
 
 writeFile(path.join(publicDir, "sitemap.xml"), buildSitemap(urls));
 writeFile(path.join(publicDir, "robots.txt"), buildRobots());
 writeFile(path.join(publicDir, "llms.txt"), buildLlmsTxt(urls));
 
 console.log(`Generated sitemap.xml (${urls.length} urls), robots.txt, llms.txt using base=${siteUrl}`);
-

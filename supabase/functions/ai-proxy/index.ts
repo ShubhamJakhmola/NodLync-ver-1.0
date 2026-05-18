@@ -9,6 +9,44 @@ const corsHeaders = {
 
 const VAULT_MASTER_SECRET = Deno.env.get("VAULT_MASTER_SECRET");
 
+// ================= SSRF PROTECTION =================
+// Strict allowlist for upstream provider hostnames (exact match only).
+// Keep this list tight; add new providers explicitly as needed.
+const ALLOWED_DOMAINS = new Set([
+  "api.openai.com",
+  "api.groq.com",
+  "api.mistral.ai",
+  "openrouter.ai",
+  "api.anthropic.com",
+  "generativelanguage.googleapis.com",
+  "integrate.api.nvidia.com",
+  "api.together.xyz",
+  "api.perplexity.ai",
+  "api.fireworks.ai",
+  "api.deepseek.com",
+  "api.x.ai",
+  // HuggingFace Inference API (explicitly trusted)
+  "api-inference.huggingface.co",
+]);
+
+function assertTrustedUpstreamUrl(rawUrl: string) {
+  let u: URL;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    throw new Error("Invalid upstream URL.");
+  }
+
+  if (u.protocol !== "https:") {
+    throw new Error("SSRF Blocked: only https upstream URLs are allowed.");
+  }
+
+  const hostname = u.hostname.toLowerCase();
+  if (!ALLOWED_DOMAINS.has(hostname)) {
+    throw new Error(`SSRF Blocked: ${hostname} is not a trusted provider.`);
+  }
+}
+
 // ================= PROVIDERS =================
 const PROVIDERS: Record<string, { baseUrl: string }> = {
   openai: { baseUrl: "https://api.openai.com/v1" },
@@ -217,6 +255,8 @@ serve(async (req) => {
         u.searchParams.set(param, apiKey);
         streamUrl = u.toString();
       }
+
+      assertTrustedUpstreamUrl(streamUrl);
 
       if (!headers["Content-Type"]) headers["Content-Type"] = "application/json";
       if (!headers["Accept"]) headers["Accept"] = "text/event-stream";
@@ -443,6 +483,7 @@ serve(async (req) => {
 
       const auth = request.auth && typeof request.auth === "object" ? request.auth : { scheme: "bearer" };
       const scheme = String(auth.scheme || "bearer").toLowerCase();
+      let finalUrl = url;
       if (scheme === "bearer") {
         headers["Authorization"] = `Bearer ${apiKey}`;
       } else if (scheme === "header") {
@@ -452,7 +493,7 @@ serve(async (req) => {
         const param = String(auth.param || "api_key");
         const u = new URL(url);
         u.searchParams.set(param, apiKey);
-        (request as any).url = u.toString();
+        finalUrl = u.toString();
       }
 
       const bodyValue = request.body;
@@ -468,7 +509,8 @@ serve(async (req) => {
         }
       }
 
-      const response = await fetch(String((request as any).url || url), { method, headers, body: fetchBody });
+      assertTrustedUpstreamUrl(finalUrl);
+      const response = await fetch(finalUrl, { method, headers, body: fetchBody });
       const contentType = response.headers.get("content-type") || "";
       const text = await response.text();
       const maybeJson = contentType.includes("application/json") ? (() => { try { return JSON.parse(text); } catch { return null; } })() : null;
@@ -486,8 +528,9 @@ serve(async (req) => {
       });
     }
 
-    // ================= CHAT =================
-    if (action !== "chat") return json({ error: `Unsupported action: ${action}` }, 400);
+    // ================= TEXT PROXY (OpenAI-Compat) =================
+    // `proxy` is the hardened contract; keep `chat` as legacy alias.
+    if (action !== "proxy" && action !== "chat") return json({ error: `Unsupported action: ${action}` }, 400);
 
     const { keyId, messages, model } = body;
     if (!keyId || !Array.isArray(messages)) return json({ error: "Invalid payload" }, 400);
@@ -503,6 +546,7 @@ serve(async (req) => {
     const apiKey = await decrypt(String((keyRow as any)[vault.encryptedCol]), String((keyRow as any)[vault.ivCol]));
     const provider = String((body as any).provider || (keyRow as any)[vault.providerCol] || "openai");
     const baseUrl = resolveBaseUrl(provider, (body as any).baseUrl);
+    assertTrustedUpstreamUrl(`${baseUrl}/chat/completions`);
 
     // CALL PROVIDER
     const response = await fetch(`${baseUrl}/chat/completions`, {

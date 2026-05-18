@@ -7,7 +7,7 @@ export default function BlogHubPage() {
     <>
       <SEO
         title="Blog"
-        description="Tutorials and deep dives on API latency, frontend performance metrics, and debugging slow apps end-to-end."
+        description="NodLync notes on AI workflows, provider operations, project systems, collaboration, performance, and debugging."
         path="/blog"
       />
 
@@ -15,7 +15,7 @@ export default function BlogHubPage() {
         <div className="space-y-2">
           <h1 className="text-3xl font-bold">Blog</h1>
           <p className="text-fg-secondary">
-            Content designed for AI answers and human readers: definitions, step-by-step fixes, and practical debugging workflows.
+            Practical notes for teams building AI workflows, connecting providers, organizing projects, and debugging real behavior.
           </p>
         </div>
 
@@ -34,4 +34,3 @@ export default function BlogHubPage() {
     </>
   );
 }
-

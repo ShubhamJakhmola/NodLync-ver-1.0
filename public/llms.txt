@@ -1,22 +1,67 @@
 # NodLync
 
-NodLync is a developer performance monitoring tool for correlating API latency with frontend performance metrics (TTFB, DCL, TBT, LCP).
+NodLync is an AI workspace and knowledge platform for projects, workflows, providers, model testing, collaboration, traffic capture, and debugging.
 
 ## Key pages
-- https://nodlync.com/
-- https://nodlync.com/features
-- https://nodlync.com/docs
-- https://nodlync.com/docs/performance-metrics
-- https://nodlync.com/docs/api-monitoring
-- https://nodlync.com/docs/setup-guide
-- https://nodlync.com/docs/troubleshooting
-- https://nodlync.com/blog
+- https://nodlync.netlify.app/
+- https://nodlync.netlify.app/features
+- https://nodlync.netlify.app/docs
+- https://nodlync.netlify.app/docs/getting-started
+- https://nodlync.netlify.app/docs/beginner-guide
+- https://nodlync.netlify.app/docs/ai-providers
+- https://nodlync.netlify.app/docs/extension-guide
+- https://nodlync.netlify.app/docs/troubleshooting
+- https://nodlync.netlify.app/blog
 
 ## Documentation
-- https://nodlync.com/docs/api-monitoring
-- https://nodlync.com/docs/performance-metrics
-- https://nodlync.com/docs/setup-guide
-- https://nodlync.com/docs/troubleshooting
+- https://nodlync.netlify.app/docs/advanced-usage
+- https://nodlync.netlify.app/docs/ai-assisted-productivity
+- https://nodlync.netlify.app/docs/ai-playground
+- https://nodlync.netlify.app/docs/ai-providers
+- https://nodlync.netlify.app/docs/ai-workflows
+- https://nodlync.netlify.app/docs/ai-workspace
+- https://nodlync.netlify.app/docs/api-keys
+- https://nodlync.netlify.app/docs/api-monitoring
+- https://nodlync.netlify.app/docs/api-vault
+- https://nodlync.netlify.app/docs/audio-workflows
+- https://nodlync.netlify.app/docs/beginner-guide
+- https://nodlync.netlify.app/docs/chat-workflows
+- https://nodlync.netlify.app/docs/collections
+- https://nodlync.netlify.app/docs/custom-providers
+- https://nodlync.netlify.app/docs/debugging
+- https://nodlync.netlify.app/docs/direct-trace-mode
+- https://nodlync.netlify.app/docs/extension-guide
+- https://nodlync.netlify.app/docs/faq
+- https://nodlync.netlify.app/docs/getting-started
+- https://nodlync.netlify.app/docs/image-generation
+- https://nodlync.netlify.app/docs/meetings-collaboration
+- https://nodlync.netlify.app/docs/models
+- https://nodlync.netlify.app/docs/multimodal-workflows
+- https://nodlync.netlify.app/docs/performance-metrics
+- https://nodlync.netlify.app/docs/projects-milestones
+- https://nodlync.netlify.app/docs/prompting
+- https://nodlync.netlify.app/docs/provider-anthropic
+- https://nodlync.netlify.app/docs/provider-custom
+- https://nodlync.netlify.app/docs/provider-gemini
+- https://nodlync.netlify.app/docs/provider-groq
+- https://nodlync.netlify.app/docs/provider-ollama
+- https://nodlync.netlify.app/docs/provider-openai
+- https://nodlync.netlify.app/docs/provider-openrouter
+- https://nodlync.netlify.app/docs/provider-replicate
+- https://nodlync.netlify.app/docs/provider-stability
+- https://nodlync.netlify.app/docs/provider-togetherai
+- https://nodlync.netlify.app/docs/provider-tracing
+- https://nodlync.netlify.app/docs/request-replay
+- https://nodlync.netlify.app/docs/research-mode
+- https://nodlync.netlify.app/docs/setup-guide
+- https://nodlync.netlify.app/docs/streaming-inspection
+- https://nodlync.netlify.app/docs/streaming-responses
+- https://nodlync.netlify.app/docs/task-management
+- https://nodlync.netlify.app/docs/traffic-capture
+- https://nodlync.netlify.app/docs/troubleshooting
+- https://nodlync.netlify.app/docs/video-generation
+- https://nodlync.netlify.app/docs/what-is-nodlync
+- https://nodlync.netlify.app/docs/workflow-organization
 
 ## Blog
-- https://nodlync.com/blog/why-api-fast-app-feels-slow
+- https://nodlync.netlify.app/blog/why-api-fast-app-feels-slow

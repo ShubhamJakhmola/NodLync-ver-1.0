@@ -1,6 +1,6 @@
 import type { ApiVaultItem } from "./apiVaultApi";
 
-export type PlaygroundMode = "chat" | "image" | "video";
+export type PlaygroundMode = "chat" | "image" | "video" | "audio" | "research" | "code";
 
 export type UniversalContentType =
   | "text"
@@ -89,15 +89,19 @@ interface AdapterBuildResult {
 
 export type UniversalStreamEvent =
   | { type: "delta"; textDelta: string; raw: unknown }
+  | { type: "reasoning"; textDelta: string; raw: unknown }
   | { type: "meta"; raw: unknown }
   | { type: "done"; raw: unknown }
   | { type: "error"; message: string; raw: unknown };
 
 export function buildStreamRequest(opts: SendUniversalRequestOptions) {
   const providerId = opts.provider.id.toLowerCase();
-  const baseUrl = opts.baseUrl || opts.provider.baseUrl || "";
-  const openAiCompatIds = ["openai", "openrouter", "groq", "xai", "deepseek", "together", "fireworks", "nvidia"];
-  const isOpenAiCompat = openAiCompatIds.some((id) => providerId.includes(id));
+  const baseUrl = opts.baseUrl || opts.apiItem.baseUrl || opts.provider.baseUrl || "";
+  const metadata = opts.apiItem.metadata || {};
+  
+  const isOpenAiCompat = 
+    metadata.isOpenAiCompatible || 
+    ["openai", "openrouter", "groq", "xai", "deepseek", "together", "fireworks", "nvidia"].some((id) => providerId.includes(id));
 
   if (isOpenAiCompat) {
     return {
@@ -171,19 +175,20 @@ function inferCapabilities(model: string, mode: PlaygroundMode) {
   };
 }
 
-function uniqueTextPrompt(messages: AdapterChatMessage[]) {
-  return messages.map((m) => m.content.trim()).filter(Boolean).join("\n");
-}
 
 function buildAdapterRequest(opts: SendUniversalRequestOptions): AdapterBuildResult {
   const providerId = opts.provider.id.toLowerCase();
   const capabilities = inferCapabilities(opts.model, opts.mode);
-  const prompt = uniqueTextPrompt(opts.messages);
-  const baseUrl = opts.baseUrl || opts.provider.baseUrl || "";
-  const openAiCompatIds = ["openai", "openrouter", "groq", "xai", "deepseek", "together", "fireworks"];
-  const isOpenAiCompat = openAiCompatIds.some((id) => providerId.includes(id));
+  const baseUrl = opts.baseUrl || opts.apiItem.baseUrl || opts.provider.baseUrl || "";
+  const metadata = opts.apiItem.metadata || {};
 
-  if (opts.mode === "video" && !capabilities.video && !providerId.includes("replicate") && !providerId.includes("fal")) {
+  const isOpenAiCompat = 
+    metadata.isOpenAiCompatible || 
+    ["openai", "openrouter", "groq", "xai", "deepseek", "together", "fireworks"].some((id) => providerId.includes(id));
+
+  const canVideo = capabilities.video || (Array.isArray(metadata.capabilities) && metadata.capabilities.includes("video_generation"));
+
+  if (opts.mode === "video" && !canVideo && !providerId.includes("replicate") && !providerId.includes("fal")) {
     throw Object.assign(new Error("Selected model/provider does not advertise video capability."), {
       universalError: {
         kind: "unsupported",
@@ -195,28 +200,30 @@ function buildAdapterRequest(opts: SendUniversalRequestOptions): AdapterBuildRes
   }
 
   if (isOpenAiCompat) {
-    if (opts.mode === "image") {
-      return {
-        body: {
-          action: "http",
-          keyId: opts.apiItem.id,
-          request: {
-            url: `${baseUrl}/images/generations`,
-            method: "POST",
-            body: { model: opts.model, prompt, n: 1, size: "1024x1024" },
-          },
-        },
-        debug: { adapter: "openai-compat-image", endpoint: "/images/generations" },
-      };
+    if (!baseUrl || !/^https?:\/\//i.test(baseUrl)) {
+      throw Object.assign(new Error("Missing provider base URL. Configure a Base URL for this API key/provider."), {
+        universalError: {
+          kind: "validation",
+          message: "Missing provider base URL. Configure a Base URL for this API key/provider.",
+          provider: opts.provider.id,
+          debug: { adapter: "openai-compat-chat", baseUrl },
+        } satisfies UniversalError,
+      });
     }
     return {
       body: {
-        action: "chat",
+        action: "http",
         keyId: opts.apiItem.id,
-        provider: opts.provider.id,
-        baseUrl,
-        model: opts.model,
-        messages: opts.messages,
+        request: {
+          url: `${baseUrl}/chat/completions`,
+          method: "POST",
+          auth: { scheme: "bearer" },
+          headers: { "content-type": "application/json" },
+          body: {
+            model: opts.model,
+            messages: opts.messages,
+          },
+        },
       },
       debug: { adapter: "openai-compat-chat", endpoint: "/chat/completions" },
     };
@@ -263,65 +270,20 @@ function buildAdapterRequest(opts: SendUniversalRequestOptions): AdapterBuildRes
     };
   }
 
-  if (providerId.includes("stability")) {
-    return {
-      body: {
-        action: "http",
-        keyId: opts.apiItem.id,
-        request: {
-          url: `${baseUrl || "https://api.stability.ai"}/v2beta/stable-image/generate/core`,
-          method: "POST",
-          headers: { Accept: "application/json" },
-          auth: { scheme: "header", headerName: "Authorization" },
-          body: { prompt, output_format: "png" },
-        },
-      },
-      debug: { adapter: "stability-image", endpoint: "/v2beta/stable-image/generate/core" },
-    };
-  }
-
-  if (providerId.includes("replicate")) {
-    return {
-      body: {
-        action: "http",
-        keyId: opts.apiItem.id,
-        request: {
-          url: `${baseUrl || "https://api.replicate.com/v1"}/predictions`,
-          method: "POST",
-          body: { version: opts.model, input: { prompt } },
-        },
-      },
-      debug: { adapter: "replicate-predictions", endpoint: "/predictions" },
-      pollRequest: {
-        url: `${baseUrl || "https://api.replicate.com/v1"}/predictions`,
-        method: "GET",
-      },
-    };
-  }
-
-  if (providerId.includes("fal")) {
-    return {
-      body: {
-        action: "http",
-        keyId: opts.apiItem.id,
-        request: {
-          url: `${baseUrl || "https://fal.run"}/${opts.model}`,
-          method: "POST",
-          body: { prompt },
-        },
-      },
-      debug: { adapter: "fal-generate", endpoint: `/${opts.model}` },
-    };
-  }
-
   return {
     body: {
-      action: "chat",
+      action: "http",
       keyId: opts.apiItem.id,
-      provider: opts.provider.id,
-      baseUrl,
-      model: opts.model,
-      messages: opts.messages,
+      request: {
+        url: `${baseUrl}/chat/completions`,
+        method: "POST",
+        auth: { scheme: "bearer" },
+        headers: { "content-type": "application/json" },
+        body: {
+          model: opts.model,
+          messages: opts.messages,
+        },
+      },
     },
     debug: { adapter: "fallback-chat", endpoint: "/chat/completions" },
   };
@@ -427,6 +389,7 @@ export async function executeUniversalRequest(opts: SendUniversalRequestOptions,
   const normalized = normalizeUniversalResponse(raw, opts.provider.id, opts.mode, opts.model);
   normalized.debug = {
     ...built.debug,
+    action: (built.body as any)?.action ?? null,
     mode: opts.mode,
     provider: opts.provider.id,
     model: opts.model,

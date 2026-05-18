@@ -10,6 +10,8 @@ export interface ApiVaultItem {
   user_id: string;
   key_name: string;
   provider: string;
+  baseUrl?: string;
+  metadata?: Record<string, any>;
   created_at: string | null;
   description?: string | null;
   tags?: string | null;
@@ -19,6 +21,7 @@ export interface CreateApiVaultInput {
   key_name: string;
   provider: string;
   apiKey: string;
+  baseUrl?: string;
   description?: string;
   tags?: string;
 }
@@ -89,12 +92,10 @@ async function invokeVaultFunction<T>(body: Record<string, unknown>): Promise<Ap
 
   const { data, error } = await supabase.functions.invoke("ai-proxy", {
     headers: {
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      Authorization: `Bearer ${session.access_token}`,
     },
     body: {
       ...body,
-      userJwt: session.access_token,
     },
   });
 
@@ -126,15 +127,24 @@ export async function getApiVaultItems(userId: string): Promise<ApiResponse<ApiV
 
   const rows = (data as any[]) ?? [];
   return {
-    data: rows.map((item: any) => ({
-      id: String(item.id),
-      user_id: String(item.user_id),
-      key_name: String(item.name),
-      provider: String(item.provider || ""),
-      description: item.description,
-      tags: item.tags,
-      created_at: item.created_at,
-    })),
+    data: rows.map((item: any) => {
+      let metadata: any = null;
+      try {
+        if (item.tags?.startsWith("{")) metadata = JSON.parse(item.tags);
+      } catch {}
+
+      return {
+        id: String(item.id),
+        user_id: String(item.user_id),
+        key_name: String(item.name),
+        provider: String(item.provider || ""),
+        baseUrl: metadata?.baseUrl,
+        metadata: metadata,
+        description: item.description,
+        tags: item.tags,
+        created_at: item.created_at,
+      };
+    }),
     error: null,
   };
 }
@@ -145,8 +155,9 @@ export async function createApiVaultItem(input: CreateApiVaultInput): Promise<Ap
     name: input.key_name,
     provider: input.provider,
     apiKey: input.apiKey,
+    baseUrl: input.baseUrl,
     description: input.description,
-    tags: input.tags,
+    tags: input.baseUrl ? JSON.stringify({ baseUrl: input.baseUrl }) : input.tags,
   });
 
   if (error) return { data: null, error };
@@ -175,5 +186,13 @@ export async function revealApiVaultItem(id: string): Promise<ApiResponse<string
 
 export async function deleteApiVaultItem(id: string): Promise<ApiResponse<null>> {
   const { error } = await supabase.from(TABLE_NAME).delete().eq("id", id);
+  return { data: null, error };
+}
+
+export async function updateApiVaultMetadata(id: string, metadata: Record<string, any>): Promise<ApiResponse<null>> {
+  const { error } = await supabase
+    .from(TABLE_NAME)
+    .update({ tags: JSON.stringify(metadata) })
+    .eq("id", id);
   return { data: null, error };
 }

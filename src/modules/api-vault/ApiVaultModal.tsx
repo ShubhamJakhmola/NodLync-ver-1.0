@@ -4,6 +4,7 @@ export interface ApiVaultFormValues {
   name: string;
   provider: string;
   apiKey: string;
+  baseUrl: string;
   description: string;
   tags: string;
 }
@@ -19,6 +20,7 @@ const emptyForm: ApiVaultFormValues = {
   name: "",
   provider: "",
   apiKey: "",
+  baseUrl: "",
   description: "",
   tags: "",
 };
@@ -57,6 +59,7 @@ const ApiVaultModal = ({
       name: form.name.trim(),
       provider: form.provider.trim(),
       apiKey: form.apiKey.trim(),
+      baseUrl: form.baseUrl.trim(),
       description: form.description.trim(),
       tags: form.tags.trim(),
     });
@@ -118,10 +121,22 @@ const ApiVaultModal = ({
             <input
               value={form.apiKey}
               onChange={(e) => setForm((current) => ({ ...current, apiKey: e.target.value }))}
+              type="password"
               className="w-full rounded-lg border border-stroke bg-surface px-3 py-2.5 font-mono text-sm text-fg focus:border-primary focus:outline-none"
               placeholder="sk-..."
             />
             {errors.apiKey ? <p className="text-xs text-rose-400">{errors.apiKey}</p> : null}
+          </label>
+
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-fg-secondary">Base URL (Optional)</span>
+            <input
+              value={form.baseUrl}
+              onChange={(e) => setForm((current) => ({ ...current, baseUrl: e.target.value }))}
+              className="w-full rounded-lg border border-stroke bg-surface px-3 py-2.5 text-sm text-fg focus:border-primary focus:outline-none"
+              placeholder="https://api.openai.com/v1"
+            />
+            <p className="text-[10px] text-fg-muted uppercase tracking-wider font-bold">Leave empty to use provider default</p>
           </label>
 
           <label className="block space-y-2">

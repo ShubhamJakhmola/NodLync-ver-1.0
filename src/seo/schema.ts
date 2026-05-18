@@ -6,8 +6,8 @@ export function softwareApplicationSchema(params?: { description?: string }) {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: SITE.name,
-    applicationCategory: "DeveloperApplication",
-    operatingSystem: "Chrome",
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
     description: params?.description ?? SITE.defaultDescription,
     url: siteUrl,
   };
@@ -47,4 +47,3 @@ export function faqSchema(params: { path: string; questions: Array<{ q: string; 
     url: `${siteUrl}${params.path}`,
   };
 }
-

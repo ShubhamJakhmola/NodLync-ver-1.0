@@ -3,6 +3,7 @@ import type { SseMessage } from "./sse";
 export type UniversalStreamEvent =
   | { type: "meta"; raw: unknown }
   | { type: "delta"; textDelta: string; raw: unknown }
+  | { type: "reasoning"; textDelta: string; raw: unknown }
   | { type: "done"; raw: unknown }
   | { type: "error"; message: string; raw: unknown };
 
@@ -36,10 +37,9 @@ export function normalizeOpenAiCompatSse(msg: SseMessage): UniversalStreamEvent 
   // Some providers stream `choices[0].delta.reasoning` / `thinking`.
   const reasoning = parsed?.choices?.[0]?.delta?.reasoning ?? parsed?.choices?.[0]?.delta?.thinking;
   if (typeof reasoning === "string" && reasoning.length) {
-    return { type: "delta", textDelta: reasoning, raw: parsed };
+    return { type: "reasoning", textDelta: reasoning, raw: parsed };
   }
 
   // Emit meta for anything else so we never silently discard.
   return { type: "meta", raw: parsed };
 }
-

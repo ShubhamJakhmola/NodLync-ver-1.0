@@ -15,6 +15,8 @@ interface ApiVaultTableProps {
   onToggleReveal: (id: string) => void;
   onCopy: (item: ApiVaultItem) => void;
   onDelete: (item: ApiVaultItem) => void;
+  onIntrospect: (item: ApiVaultItem) => void;
+  probingIds: Set<string>;
 }
 
 const ApiVaultTable = ({
@@ -30,6 +32,8 @@ const ApiVaultTable = ({
   onToggleReveal,
   onCopy,
   onDelete,
+  onIntrospect,
+  probingIds,
 }: ApiVaultTableProps) => {
   return (
     <div className="overflow-hidden rounded-xl border border-stroke">
@@ -65,6 +69,8 @@ const ApiVaultTable = ({
                 onToggleReveal={() => onToggleReveal(item.id)}
                 onCopy={() => onCopy(item)}
                 onDelete={() => onDelete(item)}
+                onIntrospect={() => onIntrospect(item)}
+                isProbing={probingIds.has(item.id)}
               />
             ))}
           </tbody>

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { ChatMessage } from "../api/aiPlaygroundApi";
 
-export type PlaygroundTabId = "chat" | "ideas" | "research";
+export type PlaygroundTabId = "chat" | "ideas" | "research" | "media";
 
 export interface PlaygroundIdeaItem {
   id: string;
@@ -27,6 +27,7 @@ export interface PlaygroundResearchColumn {
   response: string;
   error: string | null;
   runToken?: string;
+  debug?: Record<string, unknown> | null;
 }
 
 export interface PlaygroundChatState {
@@ -35,6 +36,8 @@ export interface PlaygroundChatState {
   messages: ChatMessage[];
   input: string;
   error: string | null;
+  lastDebug: Record<string, unknown> | null;
+  mode: "chat" | "research" | "image" | "video" | "audio" | "code";
 }
 
 export interface PlaygroundIdeasState {
@@ -43,6 +46,7 @@ export interface PlaygroundIdeasState {
   context: string;
   ideas: PlaygroundIdeaItem[];
   error: string | null;
+  lastDebug: Record<string, unknown> | null;
 }
 
 export interface PlaygroundResearchState {
@@ -52,6 +56,7 @@ export interface PlaygroundResearchState {
   summaryModel: string;
   summary: string;
   summaryError: string | null;
+  lastDebug: Record<string, unknown> | null;
 }
 
 export interface PlaygroundState {
@@ -74,6 +79,8 @@ const defaultChatState: PlaygroundChatState = {
   messages: [],
   input: "",
   error: null,
+  lastDebug: null,
+  mode: "chat",
 };
 
 const defaultIdeasState: PlaygroundIdeasState = {
@@ -82,6 +89,7 @@ const defaultIdeasState: PlaygroundIdeasState = {
   context: "",
   ideas: [],
   error: null,
+  lastDebug: null,
 };
 
 const defaultResearchState: PlaygroundResearchState = {
@@ -91,6 +99,7 @@ const defaultResearchState: PlaygroundResearchState = {
   summaryModel: "",
   summary: "",
   summaryError: null,
+  lastDebug: null,
 };
 
 const initialState = {

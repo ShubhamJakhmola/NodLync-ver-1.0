@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import ProtectedRoute from "./components/ProtectedRoute";
 import LoadingScreen from "./components/LoadingScreen";
 import AppLayout from "./layouts/AppLayout";
@@ -33,6 +34,17 @@ const BlogHubPage = lazy(() => import("./pages/blog/BlogHubPage"));
 const BlogPostPage = lazy(() => import("./pages/blog/BlogPostPage"));
 import useAppStore from "./store/useAppStore";
 
+function resolveThemePreference(preference?: string | null) {
+  if (preference === "light") return "light";
+  if (preference === "system") {
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches) {
+      return "light";
+    }
+    return "dark";
+  }
+  return "dark";
+}
+
 function App() {
   const setUser = useAppStore((s) => s.setUser);
   const [checkingSession, setCheckingSession] = useState(() => !useAppStore.getState().user);
@@ -44,7 +56,7 @@ function App() {
 
   useEffect(() => {
     let mounted = true;
-    let authListener: any = null;
+    let authListener: { unsubscribe: () => void } | null = null;
 
     const initAuth = async () => {
       const { supabase } = await import("./api/supabaseClient");
@@ -74,7 +86,7 @@ function App() {
         }
         
         // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
           if (mounted) {
             if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') {
               setUser(session?.user ?? null);
@@ -104,14 +116,25 @@ function App() {
   // Apply real theme globally (public + private routes)
   useEffect(() => {
     const root = document.documentElement;
-    const theme = appSettings?.theme === "light" ? "light" : "dark";
-    root.classList.remove("light", "dark");
-    root.classList.add(theme);
+    const storedPreference = window.localStorage.getItem("nodlync-theme-preference");
+    const preference = storedPreference || appSettings?.theme || "dark";
+    const applyTheme = () => {
+      const theme = resolveThemePreference(preference);
+      root.classList.remove("light", "dark");
+      root.classList.add(theme);
+    };
+
+    applyTheme();
     try {
-      window.localStorage.setItem("theme", theme);
+      window.localStorage.setItem("theme", resolveThemePreference(preference));
     } catch {
       // ignore
     }
+
+    if (preference !== "system") return;
+    const media = window.matchMedia?.("(prefers-color-scheme: light)");
+    media?.addEventListener?.("change", applyTheme);
+    return () => media?.removeEventListener?.("change", applyTheme);
   }, [appSettings?.theme]);
 
   if (checkingSession) {

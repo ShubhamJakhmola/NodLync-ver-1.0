@@ -1,9 +1,9 @@
 export const SITE = {
   name: "NodLync",
-  tagline: "API + Frontend Performance Monitoring",
-  defaultTitle: "NodLync — API + Frontend Performance Monitoring",
+  tagline: "AI Operating Workspace",
+  defaultTitle: "NodLync - AI Operating Workspace",
   defaultDescription:
-    "Monitor API latency and frontend performance metrics together (TTFB, DCL, TBT, LCP). Diagnose slow experiences with actionable, developer-first insights.",
+    "A provider-agnostic AI workspace for projects, workflows, API keys, multimodal collaboration, provider orchestration, and debugging.",
   siteUrl: (import.meta.env.VITE_SITE_URL as string | undefined) ?? "",
   twitterHandle: "@nodlync",
   ogImagePath: "/logo-512.png",
@@ -12,5 +12,5 @@ export const SITE = {
 export function getSiteUrl() {
   if (SITE.siteUrl) return SITE.siteUrl.replace(/\/+$/, "");
   if (typeof window !== "undefined") return window.location.origin;
-  return "https://nodlync.com";
+  return "https://nodlync.netlify.app";
 }

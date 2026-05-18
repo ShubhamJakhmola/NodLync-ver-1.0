@@ -6,4 +6,4 @@ Disallow: /login
 Disallow: /register
 Disallow: /forgot-password
 
-Sitemap: https://nodlync.com/sitemap.xml
+Sitemap: https://nodlync.netlify.app/sitemap.xml

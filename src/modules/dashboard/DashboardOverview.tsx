@@ -74,7 +74,7 @@ export default function DashboardOverview() {
           <p className="mx-auto max-w-xl text-sm text-fg-muted text-wrap-balance">
             Create a project to unlock tasks, logs, workflows, and dashboards.
           </p>
-          <button className="btn-primary px-5 py-2.5 text-sm" onClick={() => navigate("/projects")}>
+          <button className="btn-primary px-5 py-2.5 text-sm" onClick={() => navigate("/app/projects")}>
             Go to Projects
           </button>
         </div>
@@ -86,34 +86,34 @@ export default function DashboardOverview() {
           title="Total Projects"
           value={totalProjectsCount}
           color="primary"
-          onClick={() => navigate("/projects")}
+          onClick={() => navigate("/app/projects")}
         />
         <MetricCard
           icon="✅"
           title="Active Tasks"
           value={activeTaskCount}
           color="emerald"
-          onClick={() => navigate("/projects")}
+          onClick={() => navigate("/app/projects")}
         />
         <MetricCard
           icon="🗓️"
           title="Meetings Today"
           value={String(meetingsTodayCount).padStart(2, "0")}
           color="amber"
-          onClick={() => navigate("/meetings")}
+          onClick={() => navigate("/app/meetings")}
         />
         <MetricCard
           icon="📈"
           title="Completion Rate"
           value={`${completionRate.toFixed(1)}%`}
           color="primary"
-          onClick={() => navigate("/projects")}
+          onClick={() => navigate("/app/projects")}
         />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-12">
         <div className="space-y-6 xl:col-span-5">
-          <DashboardActiveProjectsOverview rows={activeProjectRows} onViewAll={() => navigate("/projects")} />
+          <DashboardActiveProjectsOverview rows={activeProjectRows} onViewAll={() => navigate("/app/projects")} />
           <DashboardUpcomingTasksCard tasks={upcomingTasks} />
         </div>
 

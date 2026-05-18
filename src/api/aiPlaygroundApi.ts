@@ -24,6 +24,7 @@ export interface ModelOption {
   label: string;
   value: string;
   tags?: string[];
+  capabilities?: string[];
 }
 
 export interface ProviderConfig {
@@ -447,35 +448,36 @@ async function invokeAiProxy(body: Record<string, unknown>) {
   if (sessionError) throw new Error(sessionError.message);
   if (!session?.access_token) throw new Error("Not authenticated.");
 
-  const { data, error } = await supabase.functions.invoke("ai-proxy", {
+  // Use direct HTTP fetch for consistency with streaming and to avoid the Supabase client's
+  // generic "Edge Function returned a non-2xx status code" masking the actual error body.
+  const baseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  if (!baseUrl || !anonKey) throw new Error("Supabase not configured.");
+
+  const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/functions/v1/ai-proxy`, {
+    method: "POST",
     headers: {
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
     },
-    body: {
-      ...body,
-      userJwt: session.access_token,
-    },
+    body: JSON.stringify(body),
   });
 
-  if (error) {
-    const backendMessage =
-      (error as any)?.context?.json?.error ||
-      (error as any)?.context?.json?.message ||
-      (error as any)?.message ||
-      "Request failed.";
-    const err = new Error(backendMessage) as Error & {
-      universalError?: UniversalError;
-    };
-    err.universalError = {
-      kind: "backend",
-      message: backendMessage,
-      raw: error,
-    };
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    const message = text || `Request failed (${res.status}).`;
+    const err = new Error(message) as Error & { universalError?: UniversalError };
+    err.universalError = { kind: "backend", message, raw: { status: res.status, body: text } };
     throw err;
   }
 
-  return data;
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    const text = await res.text().catch(() => "");
+    return { raw: text, data: text };
+  }
+
+  return await res.json();
 }
 
 export async function sendChatMessage(opts: SendMessageOptions): Promise<UniversalResponse> {
@@ -575,8 +577,14 @@ export async function streamChatMessage(
     // OpenAI-compatible and Anthropic both use SSE. Gemini may also stream as SSE-like.
     if (!contentType.includes("text/event-stream")) {
       const text = await res.text().catch(() => "");
-      yield { type: "error", message: text || "Unsupported stream content-type.", raw: { contentType } };
-      return;
+      throw Object.assign(new Error("Streaming not supported for this provider response."), {
+        universalError: {
+          kind: "unsupported",
+          message: text || "Unsupported stream content-type.",
+          provider: provider.id,
+          raw: { contentType, body: text },
+        },
+      });
     }
 
     for await (const msg of parseSseStream(body as ReadableStream<Uint8Array>, { signal: streamOpts?.signal })) {
@@ -658,4 +666,36 @@ export async function fetchNvidiaModels(): Promise<ModelOption[]> {
   } catch {
     return dedupeModelOptions(withModelTags(sortModelsPreferFree(NVIDIA_FALLBACK_MODELS)), "nvidia");
   }
+}
+
+export async function fetchProviderModelsFromEndpoint(opts: {
+  apiItem: ApiVaultItem;
+  baseUrl: string;
+}): Promise<ModelOption[]> {
+  const baseUrl = String(opts.baseUrl || "").trim().replace(/\/+$/, "");
+  if (!baseUrl) return [];
+
+  const data = await invokeAiProxy({
+    action: "http",
+    keyId: opts.apiItem.id,
+    request: {
+      url: `${baseUrl}/models`,
+      method: "GET",
+      auth: { scheme: "bearer" },
+    },
+  });
+
+  const nested = (data as any)?.data?.body ?? (data as any)?.data ?? data;
+  const models = Array.isArray(nested?.data) ? nested.data : Array.isArray(nested) ? nested : [];
+
+  const options: ModelOption[] = models
+    .map((m: any) => {
+      const id = typeof m === "string" ? m : (m?.id ?? m?.name ?? m?.model);
+      if (!id || typeof id !== "string") return null;
+      const label = typeof m?.name === "string" && m.name.trim() ? m.name : id;
+      return { label, value: id, tags: inferModelTags({ label, value: id }) };
+    })
+    .filter(Boolean) as ModelOption[];
+
+  return dedupeModelOptions(options, "provider");
 }

@@ -12,6 +12,8 @@ interface ApiVaultRowProps {
   onToggleReveal: () => void;
   onCopy: () => void;
   onDelete: () => void;
+  onIntrospect: () => void;
+  isProbing?: boolean;
 }
 
 const ApiVaultRow = ({
@@ -24,6 +26,8 @@ const ApiVaultRow = ({
   onToggleReveal,
   onCopy,
   onDelete,
+  onIntrospect,
+  isProbing,
 }: ApiVaultRowProps) => {
   return (
     <tr className="border-t border-stroke align-top group hover:bg-surface/40 transition-colors">
@@ -38,9 +42,28 @@ const ApiVaultRow = ({
       </td>
       <td className="px-4 py-4 text-sm font-semibold text-fg-secondary">{item.key_name}</td>
       <td className="px-4 py-4">
-        <span className="text-[10px] px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary rounded-full font-bold uppercase tracking-wider">
-          {item.provider}
-        </span>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] w-fit px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary rounded-full font-bold uppercase tracking-wider">
+            {item.provider}
+          </span>
+          {item.baseUrl && (
+            <span className="text-[9px] text-fg-muted font-mono truncate max-w-[120px]" title={item.baseUrl}>
+              {item.baseUrl.replace(/^https?:\/\//, '')}
+            </span>
+          )}
+          {item.metadata?.capabilities && (
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {item.metadata.capabilities.map((cap: string) => (
+                <span 
+                  key={cap} 
+                  className="text-[8px] px-1 bg-white/5 border border-white/10 text-fg-muted rounded-sm uppercase font-bold"
+                >
+                  {cap.replace('_generation', '')}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </td>
       <td className="px-4 py-4 text-sm text-fg-muted">
         <div className="max-w-xs overflow-hidden">
@@ -66,6 +89,8 @@ const ApiVaultRow = ({
           onToggleReveal={onToggleReveal}
           onCopy={onCopy}
           onDelete={onDelete}
+          onIntrospect={onIntrospect}
+          isProbing={isProbing}
         />
       </td>
     </tr>

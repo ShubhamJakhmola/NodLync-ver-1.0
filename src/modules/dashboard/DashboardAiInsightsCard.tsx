@@ -7,29 +7,29 @@ export default function DashboardAiInsightsCard() {
     <div className="glass-panel p-5 space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-widest text-fg-muted">AI INSIGHTS</p>
-          <h3 className="mt-2 text-lg font-semibold text-fg text-wrap-balance">Your next best actions</h3>
+          <p className="text-xs font-bold uppercase tracking-widest text-fg-muted">AI WORKSPACE</p>
+          <h3 className="mt-2 text-lg font-semibold text-fg text-wrap-balance">Provider-ready prompts</h3>
         </div>
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-stroke/60 bg-panel/10">
-          ✨
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-stroke/60 bg-panel/10 text-xs font-black text-primary">
+          AI
         </div>
       </div>
 
-      <div className="rounded-2xl border border-stroke/60 bg-panel/10 p-4 text-sm leading-relaxed text-fg-secondary">
+      <div className="rounded-lg border border-stroke/60 bg-panel/10 p-4 text-sm leading-relaxed text-fg-secondary">
         <p className="ai-highlight font-medium">
-          Based on your milestones and deadlines, we predict the highest-risk items.
+          Connect a provider key, then use AI to summarize milestones, deadlines, and blockers.
         </p>
         <p className="mt-2 overflow-anywhere text-fg-muted">
-          Generate an urgency summary and suggested next steps for today.
+          Start with a small prompt and save the version your team trusts.
         </p>
       </div>
 
       <button
         type="button"
         className="btn-primary w-full bg-emerald-400 hover:brightness-105"
-        onClick={() => navigate("/ai-playground")}
+        onClick={() => navigate("/app/ai-playground")}
       >
-        Try now
+        Open Playground
       </button>
     </div>
   );

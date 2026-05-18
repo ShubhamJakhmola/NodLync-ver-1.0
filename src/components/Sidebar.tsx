@@ -49,6 +49,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   ),
+  Docs: () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5S19.832 5.477 21 6.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253" />
+    </svg>
+  ),
 };
 
 const navItems = [
@@ -60,6 +65,7 @@ const navItems = [
   { to: "/app/ai-playground", label: "AI Playground", Icon: Icons.AiPlayground },
   { to: "/app/workflows", label: "Workflows", Icon: Icons.Workflows },
   { to: "/app/meetings", label: "Meetings", Icon: Icons.Meetings },
+  { to: "/app/docs", label: "Docs", Icon: Icons.Docs },
   { to: "/app/settings", label: "Settings", Icon: Icons.Settings },
 ];
 
@@ -100,7 +106,7 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
           </div>
           <div className="min-w-0">
             <p className="text-xl font-bold tracking-tight text-fg">NodLync</p>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-fg-muted">AI ops workspace</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-fg-muted">AI workspace</p>
           </div>
         </Link>
         {onClose ? (
@@ -109,7 +115,7 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
             onClick={onClose}
             className="rounded-xl p-2 font-bold text-fg-muted hover:bg-panel lg:hidden"
           >
-            ✕
+            Close
           </button>
         ) : null}
       </div>
@@ -175,7 +181,7 @@ const Sidebar = ({ onClose }: { onClose?: () => void }) => {
             {userProfile?.display_name || "User"}
           </p>
           <p className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-widest text-fg-muted">
-            My Profile ➔
+            My Profile
           </p>
         </div>
       </div>

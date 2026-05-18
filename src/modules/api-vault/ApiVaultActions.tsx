@@ -3,6 +3,8 @@ interface ApiVaultActionsProps {
   onToggleReveal: () => void;
   onCopy: () => void;
   onDelete: () => void;
+  onIntrospect: () => void;
+  isProbing?: boolean;
 }
 
 const ApiVaultActions = ({
@@ -10,9 +12,20 @@ const ApiVaultActions = ({
   onToggleReveal,
   onCopy,
   onDelete,
+  onIntrospect,
+  isProbing,
 }: ApiVaultActionsProps) => {
   return (
     <div className="flex items-center justify-end gap-2 pr-2">
+      <button 
+        type="button" 
+        onClick={onIntrospect} 
+        disabled={isProbing}
+        title="Introspect Provider"
+        className={`btn-ghost p-1.5 text-xs transition ${isProbing ? 'text-amber-400 animate-pulse' : 'text-fg-muted hover:text-sky-400'}`}
+      >
+        {isProbing ? "Probing..." : "Introspect"}
+      </button>
       <button 
         type="button" 
         onClick={onToggleReveal} 
