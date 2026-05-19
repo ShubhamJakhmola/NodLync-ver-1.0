@@ -105,11 +105,7 @@
   to = "/:splat"
   status = 301
 
-# SPA fallback
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+
 
 # ========================================
 # Plugin Configuration
@@ -126,15 +122,3 @@
       "/private/**"
     ]
     trailingSlash = false
-
-
-
-# ========================================
-# Functions Configuration (if using Netlify Functions)
-# ========================================
-
-[functions]
-  directory = "netlify/functions"
-  node_bundler = "esbuild"
-
-
