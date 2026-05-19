@@ -1,0 +1,72 @@
+# Netlify Redirects Configuration for NodLync
+# https://docs.netlify.com/routing/redirects/
+
+# ========================================
+# Force HTTPS (if not already handled)
+# ========================================
+http://nodlync.netlify.app/*  https://nodlync.netlify.app/:splat  301!
+
+# ========================================
+# Canonical Domain Redirect (if using custom domain)
+# ========================================
+# Uncomment these if you want to redirect netlify.app to custom domain
+# https://nodlync.netlify.app/*  https://nodlync.com/:splat  301!
+
+# ========================================
+# Trailing Slash Redirects (Choose one approach)
+# ========================================
+# Remove trailing slashes (recommended for consistency)
+/*/ /:splat 301
+
+# ========================================
+# SPA Fallback - Send all routes to index.html
+# ========================================
+/*    /index.html   200
+
+# ========================================
+# Legacy URL Redirects (if migrating from old structure)
+# ========================================
+# /old-page  /new-page  301
+# /extension  /  301
+
+# ========================================
+# API Proxy (if needed)
+# ========================================
+# /api/*  https://api.nodlync.com/:splat  200
+
+# ========================================
+# Custom Headers for Security & SEO
+# ========================================
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  
+# ========================================
+# Caching Headers for Static Assets
+# ========================================
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/images/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.png
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.jpg
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.svg
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.woff2
+  Cache-Control: public, max-age=31536000, immutable

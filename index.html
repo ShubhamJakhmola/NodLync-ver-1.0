@@ -15,25 +15,64 @@
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
 
-  <!-- SEO & Metadata -->
-  <title>NodLync — API + Frontend Performance Monitoring</title>
-  <meta name="description" content="Monitor API latency and frontend performance metrics together (TTFB, DCL, TBT, LCP). Diagnose slow experiences with actionable, developer-first insights." />
+  <!-- Primary SEO & Metadata -->
+  <title>NodLync |AI Operating Workspace</title>
+  <meta name="description"
+    content="NodLync is a workspace for teams that use AI, APIs, projects, and automation in the same day. Keep prompts, API keys, tasks, and debugging notes in one unified working surface." />
   <meta name="author" content="NodLync Team" />
-  <meta name="robots" content="index, follow" />
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+  <link rel="canonical" href="https://nodlync.com/" />
+  <link rel="alternate" href="https://nodlync.netlify.app/" />
+
+  <!-- Keywords for AI & Search Discovery -->
+  <meta name="keywords"
+    content="AI workspace, automation platform, API management, project management, team collaboration, AI prompts, API keys management, debugging workspace, n8n integration, workflow automation, developer workspace, AI operations, unified workspace, team productivity, AI project management" />
 
   <!-- Open Graph / Social Media Sharing -->
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://nodlync.com/" />
-  <meta property="og:title" content="NodLync — API + Frontend Performance Monitoring" />
-  <meta property="og:description" content="Correlate API latency with frontend performance metrics (TTFB, DCL, TBT, LCP) to debug slow apps end-to-end." />
-  <meta property="og:image" content="/logo-512.png" />
+  <meta property="og:site_name" content="NodLync" />
+  <meta property="og:title" content="NodLync | AI Operating Workspace" />
+  <meta property="og:description"
+    content="A workspace for teams that use AI, APIs, projects, and automation in the same day. Keep prompts, API keys, tasks, and debugging notes in one unified surface." />
+  <meta property="og:image" content="https://nodlync.com/logo-512.png" />
+  <meta property="og:image:width" content="512" />
+  <meta property="og:image:height" content="512" />
+  <meta property="og:image:alt" content="NodLync Logo | AI Operating Workspace" />
+  <meta property="og:locale" content="en_US" />
 
   <!-- Twitter Card -->
-  <meta property="twitter:card" content="summary_large_image" />
-  <meta property="twitter:url" content="https://nodlync.com/" />
-  <meta property="twitter:title" content="NodLync — API + Frontend Performance Monitoring" />
-  <meta property="twitter:description" content="Correlate API latency with frontend performance metrics to debug slow apps end-to-end." />
-  <meta property="twitter:image" content="/logo-512.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:url" content="https://nodlync.com/" />
+  <meta name="twitter:title" content="NodLync | AI Operating Workspace" />
+  <meta name="twitter:description"
+    content="A workspace for teams that use AI, APIs, projects, and automation in the same day. Unified surface for prompts, API keys, tasks, and debugging." />
+  <meta name="twitter:image" content="https://nodlync.com/logo-512.png" />
+  <meta name="twitter:image:alt" content="NodLync Logo" />
+  <meta name="twitter:site" content="@nodlync" />
+
+  <!-- LinkedIn Specific -->
+  <meta property="article:author" content="https://www.linkedin.com/in/shubhamjakhmola/" />
+  <meta property="article:publisher" content="https://www.linkedin.com/company/nodlync/" />
+
+  <!-- AI-specific Meta Tags -->
+  <meta name="application-name" content="NodLync" />
+  <meta name="apple-mobile-web-app-title" content="NodLync" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="format-detection" content="telephone=no" />
+
+  <!-- Geo & Language -->
+  <meta name="geo.region" content="US" />
+  <meta name="language" content="English" />
+  <meta http-equiv="content-language" content="en-US" />
+
+  <!-- Additional Discovery Meta Tags -->
+  <meta name="category" content="Business, Technology, Productivity" />
+  <meta name="coverage" content="Worldwide" />
+  <meta name="distribution" content="Global" />
+  <meta name="rating" content="General" />
+  <meta name="target" content="developers, teams, project managers, AI engineers, automation specialists" />
 
   <!-- Structured Data (JSON-LD) for AI & Search Engines -->
   <script type="application/ld+json">
@@ -41,21 +80,90 @@
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       "name": "NodLync",
+      "alternateName": "NodLync AI Operating Workspace",
       "url": "https://nodlync.com",
+      "sameAs": [
+        "https://nodlync.netlify.app",
+        "https://www.linkedin.com/in/shubhamjakhmola/",
+        "https://github.com/nodlync"
+      ],
       "image": "https://nodlync.com/logo-512.png",
-      "description": "Monitor API latency and frontend performance metrics together (TTFB, DCL, TBT, LCP). Diagnose slow experiences with actionable, developer-first insights.",
-      "applicationCategory": "DeveloperApplication",
-      "operatingSystem": "Chrome",
-      "author": {
+      "description": "NodLync is a workspace for teams that use AI, APIs, projects, and automation in the same day. Instead of keeping prompts in one place, API keys in another, tasks in a project board, and debugging notes in chat messages, NodLync brings those pieces into one working surface.",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web, Cross-platform",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      
+      "publisher": {
         "@type": "Organization",
         "name": "NodLync Team"
       },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "5",
+        "ratingCount": "1"
+      },
       "featureList": [
-        "API latency monitoring",
-        "Frontend performance metrics (TTFB, DCL, TBT, LCP)",
-        "API + UX correlation for real-user flows",
-        "AI-assisted debugging insights"
+        "Unified AI workspace",
+        "API key management",
+        "Project management integration",
+        "Automation workflow support",
+        "AI prompt library",
+        "Debugging notes and collaboration",
+        "n8n integration",
+        "GitHub integration",
+        "Netlify deployment"
+      ],
+      "softwareVersion": "1.0",
+      "releaseNotes": "https://www.linkedin.com/posts/shubhamjakhmola_n8n-netlify-github-share-7443278551468077057-BSU8"
+    }
+  </script>
+
+  <!-- Organization Structured Data -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "NodLync",
+      "url": "https://nodlync.com",
+      "logo": "https://nodlync.com/logo-512.png",
+      "description": "AI operating workspace for teams using AI, APIs, projects, and automation",
+      "sameAs": [
+        "https://nodlync.netlify.app",
+        "https://www.linkedin.com/posts/shubhamjakhmola_n8n-netlify-github-share-7443278551468077057-BSU8"
       ]
+    }
+  </script>
+
+  <!-- WebSite Structured Data for Search -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "NodLync",
+      "url": "https://nodlync.com",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://nodlync.com/search?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+  </script>
+
+  <!-- BreadcrumbList for Navigation -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [{
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://nodlync.com"
+      }]
     }
   </script>
 
@@ -64,6 +172,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
     rel="stylesheet" />
+
+  <!-- DNS Prefetch for Performance -->
+  <link rel="dns-prefetch" href="https://nodlync.com" />
+  <link rel="dns-prefetch" href="https://nodlync.netlify.app" />
+
 </head>
 
 <body>

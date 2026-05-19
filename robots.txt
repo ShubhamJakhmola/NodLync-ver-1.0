@@ -1,0 +1,251 @@
+# robots.txt for NodLync - AI Operating Workspace
+# https://nodlync.com
+# https://nodlync.netlify.app
+
+# ========================================
+# Global Rules for All Bots
+# ========================================
+
+User-agent: *
+Allow: /
+
+# Sitemap Location
+Sitemap: https://nodlync.com/sitemap.xml
+Sitemap: https://nodlync.netlify.app/sitemap.xml
+
+# ========================================
+# Allow Important Pages for SEO
+# ========================================
+
+Allow: /$
+Allow: /about
+Allow: /features
+Allow: /pricing
+Allow: /docs
+Allow: /docs/*
+Allow: /blog
+Allow: /blog/*
+Allow: /integrations
+Allow: /integrations/*
+Allow: /use-cases
+Allow: /changelog
+Allow: /contact
+Allow: /signup
+Allow: /login
+
+# ========================================
+# Allow Static Assets
+# ========================================
+
+Allow: /assets/
+Allow: /images/
+Allow: /favicon.ico
+Allow: /favicon.svg
+Allow: /logo-512.png
+Allow: /apple-touch-icon.png
+Allow: /*.css$
+Allow: /*.js$
+Allow: /*.png$
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.gif$
+Allow: /*.svg$
+Allow: /*.webp$
+
+# ========================================
+# Block Private/Admin Areas
+# ========================================
+
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /dashboard/settings
+Disallow: /api/
+Disallow: /private/
+Disallow: /_next/
+Disallow: /*/draft
+Disallow: /*/preview
+
+# ========================================
+# Block Duplicate/Filter URLs
+# ========================================
+
+Disallow: /*?*sort=
+Disallow: /*?*filter=
+Disallow: /*?*page=
+Disallow: /*?*utm_
+Disallow: /*?*ref=
+Disallow: /*?*source=
+Disallow: /*?*fbclid=
+Disallow: /*?*gclid=
+Disallow: /search?*
+
+# ========================================
+# Block User-Generated Content (if applicable)
+# ========================================
+
+Disallow: /users/
+Disallow: /user/*/edit
+Disallow: /workspace/*/private
+
+# ========================================
+# Block Authentication & Account Pages
+# ========================================
+
+Disallow: /reset-password
+Disallow: /verify-email
+Disallow: /auth/*
+Disallow: /oauth/*
+Disallow: /logout
+
+# ========================================
+# Block Development/Testing URLs
+# ========================================
+
+Disallow: /test
+Disallow: /test/*
+Disallow: /dev
+Disallow: /dev/*
+Disallow: /staging
+Disallow: /staging/*
+Disallow: /*.json$
+Disallow: /*.xml$ 
+Allow: /sitemap.xml
+
+# ========================================
+# Specific Bot Rules
+# ========================================
+
+# Google Bots
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+User-agent: Googlebot-Image
+Allow: /images/
+Allow: /*.png$
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.gif$
+Allow: /*.svg$
+Allow: /*.webp$
+
+# Bing Bot
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+# AI/LLM Crawlers
+User-agent: GPTBot
+Allow: /
+Allow: /docs/*
+Allow: /blog/*
+
+User-agent: ChatGPT-User
+Allow: /
+Allow: /docs/*
+Allow: /blog/*
+
+User-agent: CCBot
+Allow: /
+Allow: /docs/*
+
+User-agent: anthropic-ai
+Allow: /
+Allow: /docs/*
+Allow: /blog/*
+
+User-agent: Claude-Web
+Allow: /
+Allow: /docs/*
+Allow: /blog/*
+
+# Other AI Crawlers
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /docs/*
+
+User-agent: YouBot
+Allow: /
+
+User-agent: Diffbot
+Allow: /
+
+# Social Media Bots
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: Slackbot
+Allow: /
+
+User-agent: Discordbot
+Allow: /
+
+User-agent: TelegramBot
+Allow: /
+
+# ========================================
+# Bad Bots - Block Entirely
+# ========================================
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: BLEXBot
+Disallow: /
+
+User-agent: PetalBot
+Disallow: /
+
+# Generic scrapers
+User-agent: *Bot*Scraper*
+Disallow: /
+
+User-agent: *Spider*
+Disallow: /
+
+# Aggressive crawlers
+User-agent: 008
+Disallow: /
+
+User-agent: voltron
+Disallow: /
+
+User-agent: EmailCollector
+Disallow: /
+
+User-agent: EmailSiphon
+Disallow: /
+
+User-agent: WebBandit
+Disallow: /
+
+# ========================================
+# Crawl Rate Limiting
+# ========================================
+
+# Default crawl delay for well-behaved bots
+Crawl-delay: 1
+
+# ========================================
+# Host Declaration (Primary Domain)
+# ========================================
+
+Host: https://nodlync.com
